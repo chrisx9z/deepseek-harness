@@ -29,7 +29,7 @@ describe('shareMessageText', () => {
 
   it('marks image-only messages and returns empty for nothing shareable', () => {
     expect(shareMessageText([{ type: 'image' }])).toBe('[image]')
-    expect(shareMessageText([{ type: 'tool-call', name: 'x' }])).toBe('')
+    expect(shareMessageText([{ type: 'tool-call' }])).toBe('')
     expect(shareMessageText([])).toBe('')
   })
 })

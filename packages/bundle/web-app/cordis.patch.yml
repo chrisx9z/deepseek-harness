@@ -70,6 +70,10 @@
     - id: session-log-download
       name: '@deepseek-ai/dsh-session-log-export'
 
+    # Browser chat-segment share: `/share` command plus the range dialog.
+    - id: chat-share
+      name: '@deepseek-ai/dsh-session-chat-share'
+
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
 

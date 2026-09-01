@@ -818,7 +818,11 @@ function detachedProjectionsFor(
 ): SessionProjectionsBlock | undefined {
   const registry = ctx.get('sessionProjections')
   if (registry === undefined) return undefined
-  return registry.restore({}, events, 0).snapshot
+  try {
+    return registry.restore({}, events, 0).snapshot
+  } catch {
+    return undefined
+  }
 }
 
 /**

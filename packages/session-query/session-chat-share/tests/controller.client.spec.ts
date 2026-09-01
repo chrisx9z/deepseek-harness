@@ -29,6 +29,32 @@ function assistant(seq: number, text: string): HistoryEntry {
   } as unknown as HistoryEntry
 }
 
+function userWithImage(seq: number, text: string, attachmentId: string): HistoryEntry {
+  return {
+    event: {
+      type: 'user/message', seq, time: seq * 1000,
+      data: {
+        id: `u-${seq}`, role: 'user',
+        content: [
+          { type: 'text', text },
+          { type: 'image', attachment: { attachmentId, mediaType: 'image/png', name: `${attachmentId}.png` } },
+        ],
+        source: { kind: 'user-rpc', rpcId: `r-${seq}` },
+      },
+      surfaceOp: 'append',
+    },
+  } as unknown as HistoryEntry
+}
+
+function toolCall(seq: number, name: string, arguments_: string): HistoryEntry {
+  return {
+    event: {
+      type: 'tool/call', seq, time: seq * 1000,
+      data: { turn: 1, step: 1, callId: `c-${seq}`, name, arguments: arguments_ },
+    },
+  } as unknown as HistoryEntry
+}
+
 function singlePageReader(events: HistoryEntry[]): HistoryReader {
   return async () => ({ events, hasMore: false })
 }
@@ -223,6 +249,103 @@ describe('ChatShareController', () => {
     release({ events: [user(1, 'late')], hasMore: false })
     await expect(controller.open(SID)).resolves.toBeUndefined()
     expect(controller.store.getSnapshot().bySession[SID]?.error).toBeNull()
+  })
+
+  it('redacts sensitive shapes in copied output by default and honors the toggle', async () => {
+    const clipboard = vi.fn(async (_text: string) => true)
+    const controller = new ChatShareController(
+      singlePageReader([user(1, 'key sk-abcdefghijklmnopqrstuvwxyz123456 here')]),
+      clipboard,
+      vi.fn(),
+    )
+    await controller.open(SID)
+    await controller.copy(SID)
+    expect(clipboard.mock.calls[0]?.[0]).toContain('[key]')
+    controller.setRedact(SID, false)
+    await controller.copy(SID)
+    expect(clipboard.mock.calls[1]?.[0]).toContain('sk-abcdefghijklmnopqrstuvwxyz123456')
+  })
+
+  it('rebuilds tool rows when the include-tools option toggles', async () => {
+    const controller = new ChatShareController(
+      singlePageReader([user(1, 'ask'), toolCall(2, 'bash', 'echo hi'), assistant(3, 'done')]),
+      async () => true,
+      vi.fn(),
+    )
+    await controller.open(SID)
+    expect(controller.store.getSnapshot().bySession[SID]?.messages.map(m => m.role)).toEqual(['user', 'assistant'])
+
+    controller.setIncludeTools(SID, true)
+    const withTools = controller.store.getSnapshot().bySession[SID]?.messages ?? []
+    expect(withTools.map(m => m.role)).toEqual(['user', 'tool', 'assistant'])
+    expect(withTools[1]?.text.startsWith('`bash`')).toBe(true)
+
+    controller.setIncludeTools(SID, false)
+    expect(controller.store.getSnapshot().bySession[SID]?.messages.map(m => m.role)).toEqual(['user', 'assistant'])
+  })
+
+  it('embeds session images into the HTML download', async () => {
+    const attachment = vi.fn(async () => ({ data: 'AAAA', mediaType: 'image/png' }))
+    const save = vi.fn()
+    const controller = new ChatShareController(
+      singlePageReader([userWithImage(1, 'look', 'img-1')]),
+      async () => true,
+      save,
+      attachment,
+    )
+    await controller.open(SID)
+    controller.setFormat(SID, 'html')
+    await controller.download(SID)
+
+    expect(attachment).toHaveBeenCalledWith(SID, 'img-1')
+    const [blob] = save.mock.calls[0] as unknown as [Blob, string]
+    const text = await blob.text()
+    expect(text).toContain('data:image/png;base64,AAAA')
+  })
+
+  it('adds the artifact header meta (title and model) to downloads', async () => {
+    const meta = vi.fn(async () => ({ title: 'My session', model: 'deepseek/deepseek-chat' }))
+    const save = vi.fn()
+    const controller = new ChatShareController(singlePageReader([user(1, 'a')]), async () => true, save, undefined, meta)
+    await controller.open(SID)
+    await controller.download(SID)
+
+    expect(meta).toHaveBeenCalledWith(SID)
+    const [blob] = save.mock.calls[0] as unknown as [Blob, string]
+    const text = await blob.text()
+    expect(text).toContain('My session')
+    expect(text).toContain('deepseek/deepseek-chat')
+  })
+
+  it('follows the live artifact labels (UI locale)', async () => {
+    const clipboard = vi.fn(async (_text: string) => true)
+    const labels = () => ({
+      user: '用户', assistant: '助手', tool: '工具', sharedFrom: '分享自 DeepSeek Harness',
+    })
+    const controller = new ChatShareController(
+      singlePageReader([user(1, '你好')]), clipboard, vi.fn(), undefined, undefined, labels,
+    )
+    await controller.open(SID)
+    await controller.copy(SID)
+    expect(clipboard.mock.calls[0]?.[0]).toContain('**用户**')
+    expect(clipboard.mock.calls[0]?.[0]).toContain('分享自 DeepSeek Harness')
+  })
+
+  it('saves only the newest N messages for /share last N', async () => {
+    const save = vi.fn()
+    const controller = new ChatShareController(
+      singlePageReader([user(1, 'msg-one'), user(2, 'msg-two'), user(3, 'msg-three')]),
+      async () => true,
+      save,
+    )
+    await controller.saveTxt(SID, 2)
+
+    const [blob, filename] = save.mock.calls[0] as unknown as [Blob, string]
+    expect(filename).toBe('dsh-chat-share-session-chat-share-controller-1-2.txt')
+    const text = await blob.text()
+    expect(text).toContain('msg-two')
+    expect(text).toContain('msg-three')
+    expect(text).not.toContain('msg-one')
   })
 })
 

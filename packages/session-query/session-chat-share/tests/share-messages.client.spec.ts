@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { HistoryEntry } from '@deepseek-ai/dsh-api-remotes/client'
-import { buildShareMessages, shareMessageText } from '../src/client/controller.ts'
+import { buildShareMessages, shareMessageParts } from '../src/client/controller.ts'
 
 function user(seq: number, content: unknown[], time = seq * 1000): HistoryEntry {
   return {
@@ -22,15 +22,31 @@ function assistant(seq: number, content: unknown[], time = seq * 1000): HistoryE
   } as unknown as HistoryEntry
 }
 
-describe('shareMessageText', () => {
-  it('joins text blocks verbatim', () => {
-    expect(shareMessageText([{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }])).toBe('a\nb')
+function toolCall(seq: number, name: string, arguments_: string, time = seq * 1000): HistoryEntry {
+  return {
+    event: {
+      type: 'tool/call', seq, time,
+      data: { turn: 1, step: 1, callId: `c-${seq}`, name, arguments: arguments_ },
+    },
+  } as unknown as HistoryEntry
+}
+
+describe('shareMessageParts', () => {
+  it('joins text blocks verbatim and collects image refs', () => {
+    const { text, images } = shareMessageParts([
+      { type: 'text', text: 'a' },
+      { type: 'image', attachment: { attachmentId: 'img-1', mediaType: 'image/png', name: 'shot.png' } },
+      { type: 'text', text: 'b' },
+    ])
+    expect(text).toBe('a\nb')
+    expect(images).toEqual([{ attachmentId: 'img-1', mediaType: 'image/png', name: 'shot.png' }])
   })
 
   it('marks image-only messages and returns empty for nothing shareable', () => {
-    expect(shareMessageText([{ type: 'image' }])).toBe('[image]')
-    expect(shareMessageText([{ type: 'tool-call' }])).toBe('')
-    expect(shareMessageText([])).toBe('')
+    expect(shareMessageParts([{ type: 'image', attachment: { attachmentId: 'img-1', mediaType: 'image/png' } }]))
+      .toEqual({ text: '[image]', images: [{ attachmentId: 'img-1', mediaType: 'image/png' }] })
+    expect(shareMessageParts([{ type: 'tool-call' }])).toEqual({ text: '', images: [] })
+    expect(shareMessageParts([])).toEqual({ text: '', images: [] })
   })
 })
 
@@ -74,10 +90,28 @@ describe('buildShareMessages', () => {
     const entries = [
       user(1, [{ type: 'tool-call', name: 'x' }]),
       assistant(2, []),
-      user(3, [{ type: 'image' }]),
+      user(3, [{ type: 'image', attachment: { attachmentId: 'img-3', mediaType: 'image/png' } }]),
     ]
     expect(buildShareMessages(entries)).toEqual([
-      { seq: 3, role: 'user', text: '[image]', time: 3000 },
+      {
+        seq: 3, role: 'user', text: '[image]', time: 3000,
+        images: [{ attachmentId: 'img-3', mediaType: 'image/png' }],
+      },
     ])
+  })
+
+  it('includes bounded tool-call rows only when opted in', () => {
+    const long = 'x'.repeat(900)
+    const entries = [assistant(1, [{ type: 'text', text: 'ok' }]), toolCall(2, 'bash', long)]
+    expect(buildShareMessages(entries)).toEqual([
+      { seq: 1, role: 'assistant', text: 'ok', time: 1000 },
+    ])
+    const withTools = buildShareMessages(entries, { includeTools: true })
+    expect(withTools).toHaveLength(2)
+    const toolRow = withTools[1]
+    expect(toolRow?.role).toBe('tool')
+    expect(toolRow?.text.startsWith('`bash`')).toBe(true)
+    expect(toolRow?.text.length).toBeLessThan(long.length + 20)
+    expect(toolRow?.text.endsWith('…')).toBe(true)
   })
 })

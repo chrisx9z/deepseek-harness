@@ -58,11 +58,13 @@ describe('session-chat-share real Loader composition', () => {
       .create(SessionId('loader-chat-share'), { meta: { createdAt: 1 } })
     const agent = { session, status: 'idle', options: {} } as unknown as Agent
     expect(context.commands.list(agent)).toContainEqual({
-      name: 'share', description: 'Share a segment of this chat as Markdown or HTML',
+      name: 'share', description: 'Share a segment of this chat as Markdown, HTML, or plain text',
     })
     const execution = await context.commands.execute(agent, '/share', [], new AbortController().signal)
-    expect(execution?.result).toEqual({ kind: 'success', text: 'Chat segment share dialog requested.' })
-    expect(session.events.map(event => event.type)).toEqual(['command/run', 'command/done'])
+    expect(execution?.result).toEqual({ kind: 'success', text: 'share' })
+    const txt = await context.commands.execute(agent, '/share txt last 3', [], new AbortController().signal)
+    expect(txt?.result).toEqual({ kind: 'success', text: 'share:txt:3' })
+    expect(session.events.map(event => event.type)).toEqual(['command/run', 'command/done', 'command/run', 'command/done'])
     expect(session.deriveMessages()).toEqual([])
   })
 })

@@ -23,7 +23,9 @@ function user(seq: number, text: string): HistoryEntry {
 function bench(controller = new ChatShareController(async () => ({ events: [], hasMore: false }), async () => true, vi.fn())) {
   const open = vi.fn((sessionId: SessionId) => controller.open(sessionId))
   const setRange = vi.fn((sessionId: SessionId, from: number, to: number) => { controller.setRange(sessionId, from, to) })
-  const setFormat = vi.fn((sessionId: SessionId, format: 'markdown' | 'html') => { controller.setFormat(sessionId, format) })
+  const setFormat = vi.fn((sessionId: SessionId, format: 'markdown' | 'html' | 'txt') => { controller.setFormat(sessionId, format) })
+  const setRedact = vi.fn((sessionId: SessionId, redact: boolean) => { controller.setRedact(sessionId, redact) })
+  const setIncludeTools = vi.fn((sessionId: SessionId, includeTools: boolean) => { controller.setIncludeTools(sessionId, includeTools) })
   const copy = vi.fn((sessionId: SessionId) => controller.copy(sessionId))
   const download = vi.fn((sessionId: SessionId) => controller.download(sessionId))
   const dismiss = vi.fn((sessionId: SessionId) => { controller.dismiss(sessionId) })
@@ -34,9 +36,11 @@ function bench(controller = new ChatShareController(async () => ({ events: [], h
     )
   }
   const t = (key: keyof typeof en): string => en[key]
-  const props = { sessionId: SID, useChatShare, open, setRange, setFormat, copy, download, dismiss, t } as unknown as ChatShareDialogProps
+  const props = {
+    sessionId: SID, useChatShare, open, setRange, setFormat, setRedact, setIncludeTools, copy, download, dismiss, t,
+  } as unknown as ChatShareDialogProps
   const view = render(<ChatShareDialog {...props} />)
-  return { controller, open, setRange, setFormat, copy, download, dismiss, view }
+  return { controller, open, setRange, setFormat, setRedact, setIncludeTools, copy, download, dismiss, view }
 }
 
 afterEach(cleanup)
@@ -85,6 +89,41 @@ describe('ChatShareDialog', () => {
     await waitFor(() => { expect(b.download).toHaveBeenCalledWith(SID) })
   })
 
+  it('toggles redaction and tool-call options through the checkboxes', async () => {
+    const controller = new ChatShareController(
+      async () => ({ events: [user(1, 'first question'), user(2, 'second question')], hasMore: false }),
+      async () => true,
+      vi.fn(),
+    )
+    const b = bench(controller)
+    await controller.open(SID)
+
+    const redact = b.view.getByLabelText('Redact sensitive info') as HTMLInputElement
+    expect(redact.checked).toBe(true)
+    fireEvent.click(redact)
+    await waitFor(() => { expect(b.setRedact).toHaveBeenCalledWith(SID, false) })
+
+    const tools = b.view.getByLabelText('Include tool calls') as HTMLInputElement
+    expect(tools.checked).toBe(false)
+    fireEvent.click(tools)
+    await waitFor(() => { expect(b.setIncludeTools).toHaveBeenCalledWith(SID, true) })
+  })
+
+  it('renders the range preview with localized role headers', async () => {
+    const controller = new ChatShareController(
+      async () => ({ events: [user(1, 'first question')], hasMore: false }),
+      async () => true,
+      vi.fn(),
+    )
+    const b = bench(controller)
+    await controller.open(SID)
+
+    const dialog = await b.view.findByRole('dialog', { name: 'Share chat segment' })
+    expect(dialog.textContent).toContain('Preview')
+    expect(dialog.textContent).toContain('User · ')
+    expect(dialog.textContent).toContain('first question')
+  })
+
   it('shows history failures and closes through the footer', async () => {
     const controller = new ChatShareController(async () => { throw new Error('offline') }, async () => true, vi.fn())
     const b = bench(controller)
@@ -118,6 +157,7 @@ describe('ChatShareDialog', () => {
     await controller.open(SID)
 
     const copying = controller.copy(SID)
+    await waitFor(() => { expect(clipboard).toHaveBeenCalled() })
     act(() => { resolveCopy(true) })
     await copying
     expect(controller.store.getSnapshot().bySession[SID]).toMatchObject({ open: true, copied: true })

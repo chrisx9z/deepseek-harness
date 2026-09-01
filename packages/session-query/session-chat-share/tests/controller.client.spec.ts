@@ -133,6 +133,13 @@ describe('ChatShareController', () => {
     expect(second.type).toBe('text/markdown;charset=utf-8')
     expect(secondName).toMatch(/\.md$/)
     expect(secondName).toContain('-1-2.')
+
+    controller.setFormat(SID, 'txt')
+    await controller.download(SID)
+    const [third, thirdName] = save.mock.calls[2] as unknown as [Blob, string]
+    expect(third.type).toBe('text/plain;charset=utf-8')
+    expect(thirdName).toMatch(/\.txt$/)
+    expect(thirdName).toContain('-1-2.')
   })
 
   it('publishes history failures and raw details', async () => {

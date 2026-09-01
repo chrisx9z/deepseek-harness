@@ -74,6 +74,9 @@ describe('ChatShareDialog', () => {
     fireEvent.click(b.view.getByLabelText('HTML'))
     await waitFor(() => { expect(b.setFormat).toHaveBeenCalledWith(SID, 'html') })
 
+    fireEvent.click(b.view.getByLabelText('TXT'))
+    await waitFor(() => { expect(b.setFormat).toHaveBeenCalledWith(SID, 'txt') })
+
     fireEvent.click(b.view.getByRole('button', { name: 'Copy' }))
     await waitFor(() => { expect(b.copy).toHaveBeenCalledWith(SID) })
     await waitFor(() => { expect(b.view.getByText('Copied')).toBeTruthy() })

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ShareMessage } from '../src/client/controller.ts'
 import {
-  escapeHtml, formatShareTime, renderRichText, renderShareHtml, renderShareMarkdown, shareFileName,
+  escapeHtml, formatShareTime, renderRichText, renderShareHtml, renderShareMarkdown, renderShareTxt, shareFileName,
 } from '../src/client/render.ts'
 
 const MESSAGES: ShareMessage[] = [
@@ -18,6 +18,19 @@ describe('renderShareMarkdown', () => {
     expect(markdown).toContain('What is 2 + 2?')
     expect(markdown).toContain('```js\nconst answer = 4\n```')
     expect(markdown.endsWith('\n')).toBe(true)
+  })
+})
+
+describe('renderShareTxt', () => {
+  it('emits plain-text role headers, timestamps, and verbatim text', () => {
+    const text = renderShareTxt(MESSAGES)
+    expect(text.startsWith('Shared from DeepSeek Harness')).toBe(true)
+    expect(text).toContain('User · ')
+    expect(text).toContain('Assistant · ')
+    expect(text).toContain('What is 2 + 2?')
+    expect(text).toContain('```js\nconst answer = 4\n```')
+    expect(text).not.toContain('**User**')
+    expect(text.endsWith('\n')).toBe(true)
   })
 })
 
@@ -63,5 +76,6 @@ describe('formatShareTime and shareFileName', () => {
   it('sanitizes the session id into the filename', () => {
     expect(shareFileName('a/b:c', 0, 2, 'markdown')).toBe('dsh-chat-share-a_b_c-1-3.md')
     expect(shareFileName('a', 3, 3, 'html')).toBe('dsh-chat-share-a-4-4.html')
+    expect(shareFileName('a', 3, 3, 'txt')).toBe('dsh-chat-share-a-4-4.txt')
   })
 })

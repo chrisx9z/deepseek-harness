@@ -14,7 +14,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-client-runtime/client'
-import type { WorkspaceBrowserProps } from '../contract/slots.ts'
+import type { SessionRowMenuAction, WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
 import { relativeTime } from '../tree.ts'
 import css from './Rows.module.css'
@@ -354,12 +354,13 @@ export function SearchResultItem({ result, currentId, onOpen, t }: {
  * @param props.onRename - open the session rename dialog (id + current title).
  * @param props.onFork - fork a session at its last completed turn.
  * @param props.onArchive - archive a session by id.
+ * @param props.sessionMenuActions - contributed `...` menu actions (after the built-ins).
  * @param props.drag - optional draggable-row wiring.
  * @param props.flat - omit the empty status slot in the hierarchy-free flat list.
  * @param props.t - the browser root's locale seat.
  * @returns the session row.
  */
-export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, drag, flat = false, t }: {
+export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, sessionMenuActions, drag, flat = false, t }: {
   node: SessionNode
   currentId: string | undefined
   now: number
@@ -370,6 +371,8 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
   onFork: (id: SessionNode['id']) => void
   /** Archive this session (row menu action; commits without a dialog). */
   onArchive: (id: SessionNode['id']) => void
+  /** Contributed `...` menu actions, rendered after the built-in rows. */
+  sessionMenuActions?: readonly SessionRowMenuAction[] | undefined
   /** Present only on draggable rows (workspace-group sessions outside search). */
   drag?: RowDragProps | undefined
   /** The row is rendered without a parent Workspace header. */
@@ -385,12 +388,18 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
   const [menuOpen, setMenuOpen] = useState(false)
   // Archive hides the row through the registry-global archive set and never
   // touches the session log, so it is not styled as destructive and needs no
-  // confirmation dialog.
+  // confirmation dialog. Contributed actions render after the built-ins,
+  // sorted by the contributor's own `order`.
   const sessionMenuItems = [
     { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
     { id: 'fork', label: t('menu.fork'), icon: <IconBranchOutline16 /> },
     // 20-native glyph in the menu's 16px icon slot (Menu.module.css .itemIcon).
     { id: 'archive', label: t('menu.archiveSession'), icon: <IconArchiveOutline20 size={16} /> },
+    ...(sessionMenuActions ?? []).map(action => ({
+      id: action.id,
+      label: typeof action.label === 'function' ? action.label() : action.label,
+      icon: action.icon,
+    })),
   ]
   // Figma session cell: pad 8, status slot 16, then a 4px title gap.
   const ownRow = (
@@ -453,6 +462,10 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
               if (id === 'rename') onRename(node.id, row.title)
               if (id === 'fork') onFork(node.id)
               if (id === 'archive') onArchive(node.id)
+              // Unknown ids land on the contributed rows; a future built-in
+              // must not inherit a contributor's action as an else fallback.
+              const contribution = (sessionMenuActions ?? []).find(action => action.id === id)
+              if (contribution !== undefined) contribution.run(node.id)
             }}
             portal
             closeOnPointerLeave

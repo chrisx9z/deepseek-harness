@@ -22,6 +22,7 @@
  * and a hole has exactly one declaring entry — they carry the same owner
  * contract and the same occupant.
  */
+import type { ReactNode } from 'react'
 import type { HostDescriptionSource } from '@deepseek-ai/dsh-client-connection/client'
 import type { HostObservable, PropsHooks, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pull the owner SlotMap merges into programs that resolve the
@@ -83,6 +84,35 @@ export type DirectoryPickingInjected = {
 export type DirectoryPickingHooks = PropsHooks<DirectoryPickingInjected['hooks']>
 
 /**
+ * One contributor action rendered in the session row `...` menu, after the
+ * built-in Rename / Fork / Archive rows. Feature packages own the action and
+ * its state; ui-workspace only provides the shelf.
+ */
+export interface SessionRowMenuAction {
+  /** Stable id; the row dispatches clicks back to this registration's `run`. */
+  readonly id: string
+  /** Localized menu label; a function is re-evaluated at every render. */
+  readonly label: string | (() => string)
+  /** Menu icon node (16px icon slot). */
+  readonly icon?: ReactNode
+  /** Sort order among contributions (default 0). */
+  readonly order?: number
+  /** Run the action for one session row. */
+  readonly run: (sessionId: string) => void
+}
+
+/**
+ * Registry of session-row menu contributions, provided as `ctx.sessionRowMenu`.
+ * Registration happens at plugin-apply time; rows read `actions()` per render.
+ */
+export interface SessionRowMenuService {
+  /** Register one action; returns the disposer. */
+  register(action: SessionRowMenuAction): () => void
+  /** All live actions in `order` ascending (built-in rows are not included). */
+  actions(): readonly SessionRowMenuAction[]
+}
+
+/**
  * Browser-private injected share (arrives via the register inject factory).
  * Data reads use the global framework hooks; these are the Host actions the
  * browsing region drives.
@@ -137,6 +167,8 @@ export type WorkspaceBrowserInjected = {
   insertSessionBefore: (workspaceId: WorkspaceId, sessionId: SessionId, beforeSessionId?: SessionId) => Promise<void>
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
+  /** Session-row `...` menu contributions (feature packages register actions). */
+  sessionRowMenu: SessionRowMenuService
 }
 
 /** Full browser props: shell owner share + viewing store + injected actions + the locale seat. */

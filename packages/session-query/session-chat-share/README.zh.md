@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Web 聊天片段分享控件：在 Session Header 对话框中选择消息范围，以 Markdown 复制，或下载为 Markdown/HTML 文件。Host 半区注册 `/share` 命令；浏览器半区负责 Header 操作、范围选择模态框、渲染器以及剪贴板和下载操作。消息历史通过常规的 `session.history` RPC 读取——不新增 Host 端点、不改动持久化，也不涉及模型。
+Web 聊天片段分享控件：选择消息范围，以 Markdown 复制，或下载为 Markdown/HTML 文件。Host 半区注册 `/share` 命令；浏览器半区负责 Header 操作、侧边栏会话行 `...` 菜单入口、范围选择模态框、渲染器以及剪贴板和下载操作。消息历史通过常规的 `session.history` RPC 读取——不新增 Host 端点、不改动持久化，也不涉及模型。
 
 ## 命令契约
 
@@ -22,7 +22,7 @@ Web 聊天片段分享控件：在 Session Header 对话框中选择消息范围
   name: '@deepseek-ai/dsh-session-chat-share'
 ```
 
-Web bundle 将该包与 `dsh-host-apiproxy`、`dsh-commands`、`dsh-client-ui-commands` 和 `dsh-client-ui-conversation` 一同挂载。该包将其按钮和对话框贡献到右对齐的 `conversation.session.header.utilities` 列表，与 `conversation.session.header.actions` 中标题旁的 mode、Subagent 和 Task 条目相互独立；Trajectory 不提供分享控件。
+Web bundle 将该包与 `dsh-host-apiproxy`、`dsh-commands`、`dsh-client-ui-commands` 和 `dsh-client-ui-conversation` 一同挂载。该包将其按钮和对话框贡献到右对齐的 `conversation.session.header.utilities` 列表，并通过 `dsh-client-ui-workspace` 提供的 `sessionRowMenu` 注册表，在每个会话的侧边栏 `...` 菜单中加入 Share 行；Trajectory 不提供分享控件。
 
 ## 模型体验
 

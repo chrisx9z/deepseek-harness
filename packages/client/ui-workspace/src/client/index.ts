@@ -13,7 +13,10 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { WorkspaceBrowserInjected, WorkspacePickerInjected } from './contract/slots.ts'
+import type {
+  SessionRowMenuService, WorkspaceBrowserInjected, WorkspacePickerInjected,
+} from './contract/slots.ts'
+import { createSessionRowMenuService } from './session-row-menu.ts'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './WorkspaceBrowser.tsx'
 import { WorkspacePicker } from './WorkspacePicker.tsx'
@@ -21,6 +24,7 @@ import { en, zh, type WorkspaceKey } from './locales.ts'
 
 export type {
   DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected,
+  SessionRowMenuAction, SessionRowMenuService,
   WorkspaceBrowserInjected, WorkspaceBrowserProps, WorkspacePickerInjected, WorkspacePickerProps,
 } from './contract/slots.ts'
 export type { WorkspaceKey } from './locales.ts'
@@ -29,6 +33,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** The workspace browsing region and pick/create flow copy. */
     workspace: WorkspaceKey
+  }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Session-row `...` menu contribution registry (see {@link SessionRowMenuService}). */
+    sessionRowMenu: SessionRowMenuService
   }
 }
 
@@ -55,6 +66,7 @@ export function apply(ctx: ClientContext): void {
   const connection = ctx.get('connection') as ConnectionHandle
   const hostDescription = connection.hostDescription
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
+  ctx.provide('sessionRowMenu', createSessionRowMenuService())
 
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
     const result = await ctx.sessions.search(query, signal)
@@ -103,6 +115,7 @@ export function apply(ctx: ClientContext): void {
     },
     createWorkspace: input => ctx.workspaces.create(input),
     hooks: { directoryFlow: browserFlowSource, hostDescription },
+    sessionRowMenu: ctx.sessionRowMenu,
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => ctx.workspaces.create(input),

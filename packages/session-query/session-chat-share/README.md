@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Web Chat-segment share control: pick a message range in the Session Header dialog and copy it as Markdown or download it as a Markdown/HTML file. The Host half registers the `/share` command; the browser half owns the Header action, the range-selection modal, the renderers, and the clipboard and download operations. Message history is read through the ordinary `session.history` RPC — no Host endpoint, no persistence changes, and no model involvement.
+Web Chat-segment share control: pick a message range and copy it as Markdown or download it as a Markdown/HTML file. The Host half registers the `/share` command; the browser half owns the Header action, the sidebar session-row `...` menu entry, the range-selection modal, the renderers, and the clipboard and download operations. Message history is read through the ordinary `session.history` RPC — no Host endpoint, no persistence changes, and no model involvement.
 
 ## Command contract
 
@@ -22,7 +22,7 @@ The dialog lists the Session's shareable messages (append-origin `user/message` 
   name: '@deepseek-ai/dsh-session-chat-share'
 ```
 
-The Web bundle mounts the package beside `dsh-host-apiproxy`, `dsh-commands`, `dsh-client-ui-commands`, and `dsh-client-ui-conversation`. The package contributes its button and dialog to the right-aligned `conversation.session.header.utilities` list, independently of the title-adjacent mode, Subagent, and Task entries in `conversation.session.header.actions`; Trajectory carries no share control.
+The Web bundle mounts the package beside `dsh-host-apiproxy`, `dsh-commands`, `dsh-client-ui-commands`, and `dsh-client-ui-conversation`. The package contributes its button and dialog to the right-aligned `conversation.session.header.utilities` list, plus a Share row in each session's sidebar `...` menu through the `sessionRowMenu` registry provided by `dsh-client-ui-workspace`; Trajectory carries no share control.
 
 ## Model Experience
 

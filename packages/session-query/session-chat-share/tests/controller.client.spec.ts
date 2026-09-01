@@ -347,6 +347,18 @@ describe('ChatShareController', () => {
     expect(text).toContain('msg-three')
     expect(text).not.toContain('msg-one')
   })
+
+  it('direct saves carry the whole chat beyond the dialog row cap', async () => {
+    const events: HistoryEntry[] = []
+    for (let seq = 1; seq <= SHARE_MAX_MESSAGES + 40; seq += 1) events.push(user(seq, `m${seq}`))
+    const save = vi.fn()
+    const controller = new ChatShareController(singlePageReader(events), async () => true, save)
+
+    await controller.saveTxt(SID)
+
+    const [, filename] = save.mock.calls[0] as unknown as [Blob, string]
+    expect(filename).toBe(`dsh-chat-share-session-chat-share-controller-1-${SHARE_MAX_MESSAGES + 40}.txt`)
+  })
 })
 
 describe('saveBlob', () => {

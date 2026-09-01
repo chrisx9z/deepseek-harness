@@ -22,7 +22,7 @@ The dialog lists the Session's shareable messages (append-origin `user/message` 
   name: '@deepseek-ai/dsh-session-chat-share'
 ```
 
-The Web bundle mounts the package beside `dsh-host-apiproxy`, `dsh-commands`, `dsh-client-ui-commands`, and `dsh-client-ui-conversation`. The package contributes its button and dialog to the right-aligned `conversation.session.header.utilities` list, plus a Share row in each session's sidebar `...` menu through the `sessionRowMenu` registry provided by `dsh-client-ui-workspace`; Trajectory carries no share control.
+The Web bundle mounts the package beside `dsh-host-apiproxy`, `dsh-commands`, `dsh-client-ui-commands`, and `dsh-client-ui-conversation`. The package contributes its button and dialog to the right-aligned `conversation.session.header.utilities` list, plus Share and Save TXT rows in each session's sidebar `...` menu through the `sessionRowMenu` registry provided by `dsh-client-ui-workspace`; Trajectory carries no share control.
 
 ## Model Experience
 

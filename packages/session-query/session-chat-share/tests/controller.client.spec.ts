@@ -150,6 +150,57 @@ describe('ChatShareController', () => {
     })
   })
 
+  it('saves the whole chat as one plain-text file without opening the dialog', async () => {
+    const reader = vi.fn(singlePageReader([user(1, 'first'), assistant(2, 'second')]))
+    const save = vi.fn()
+    const controller = new ChatShareController(reader, async () => true, save)
+
+    await controller.saveTxt(SID)
+
+    expect(reader).toHaveBeenCalledOnce()
+    expect(save).toHaveBeenCalledOnce()
+    const [blob, filename] = save.mock.calls[0] as unknown as [Blob, string]
+    expect(blob.type).toBe('text/plain;charset=utf-8')
+    expect(filename).toBe('dsh-chat-share-session-chat-share-controller-1-2.txt')
+    expect(controller.store.getSnapshot().bySession[SID]?.open).not.toBe(true)
+  })
+
+  it('joins an in-flight dialog load instead of reading history twice', async () => {
+    const reader = vi.fn(singlePageReader([user(1, 'a')]))
+    const save = vi.fn()
+    const controller = new ChatShareController(reader, async () => true, save)
+
+    const opening = controller.open(SID)
+    await controller.saveTxt(SID)
+    await opening
+
+    expect(reader).toHaveBeenCalledOnce()
+    expect(save).toHaveBeenCalledOnce()
+    const [blob, filename] = save.mock.calls[0] as unknown as [Blob, string]
+    expect(blob.type).toBe('text/plain;charset=utf-8')
+    expect(filename).toMatch(/\.txt$/)
+  })
+
+  it('reuses already-loaded messages for a direct save', async () => {
+    const reader = vi.fn(singlePageReader([user(1, 'a')]))
+    const save = vi.fn()
+    const controller = new ChatShareController(reader, async () => true, save)
+
+    await controller.open(SID)
+    await controller.saveTxt(SID)
+
+    expect(reader).toHaveBeenCalledOnce()
+    expect(save).toHaveBeenCalledOnce()
+  })
+
+  it('publishes save failures into the entry for the next dialog open', async () => {
+    const controller = new ChatShareController(async () => { throw new Error('offline') }, async () => true, vi.fn())
+
+    await controller.saveTxt(SID)
+
+    expect(controller.store.getSnapshot().bySession[SID]).toMatchObject({ error: 'offline' })
+  })
+
   it('caps collected messages at the newest SHARE_MAX_MESSAGES', async () => {
     const events: HistoryEntry[] = []
     for (let seq = 1; seq <= SHARE_MAX_MESSAGES + 40; seq += 1) events.push(user(seq, `m${seq}`))

@@ -22,7 +22,7 @@ Web 聊天片段分享控件：选择消息范围，以 Markdown 复制，或下
   name: '@deepseek-ai/dsh-session-chat-share'
 ```
 
-Web bundle 将该包与 `dsh-host-apiproxy`、`dsh-commands`、`dsh-client-ui-commands` 和 `dsh-client-ui-conversation` 一同挂载。该包将其按钮和对话框贡献到右对齐的 `conversation.session.header.utilities` 列表，并通过 `dsh-client-ui-workspace` 提供的 `sessionRowMenu` 注册表，在每个会话的侧边栏 `...` 菜单中加入 Share 行；Trajectory 不提供分享控件。
+Web bundle 将该包与 `dsh-host-apiproxy`、`dsh-commands`、`dsh-client-ui-commands` 和 `dsh-client-ui-conversation` 一同挂载。该包将其按钮和对话框贡献到右对齐的 `conversation.session.header.utilities` 列表，并通过 `dsh-client-ui-workspace` 提供的 `sessionRowMenu` 注册表，在每个会话的侧边栏 `...` 菜单中加入 Share 和保存 TXT 行；Trajectory 不提供分享控件。
 
 ## 模型体验
 

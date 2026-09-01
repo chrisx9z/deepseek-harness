@@ -23,9 +23,13 @@ function user(seq: number, text: string): HistoryEntry {
 function bench(controller = new ChatShareController(async () => ({ events: [], hasMore: false }), async () => true, vi.fn())) {
   const open = vi.fn((sessionId: SessionId) => controller.open(sessionId))
   const setRange = vi.fn((sessionId: SessionId, from: number, to: number) => { controller.setRange(sessionId, from, to) })
-  const setFormat = vi.fn((sessionId: SessionId, format: 'markdown' | 'html' | 'txt') => { controller.setFormat(sessionId, format) })
+  const setFormat = vi.fn((sessionId: SessionId, format: 'markdown' | 'html' | 'txt' | 'png') => { controller.setFormat(sessionId, format) })
   const setRedact = vi.fn((sessionId: SessionId, redact: boolean) => { controller.setRedact(sessionId, redact) })
   const setIncludeTools = vi.fn((sessionId: SessionId, includeTools: boolean) => { controller.setIncludeTools(sessionId, includeTools) })
+  const setIncludeSubagents = vi.fn((sessionId: SessionId, includeSubagents: boolean) =>
+    controller.setIncludeSubagents(sessionId, includeSubagents))
+  const setMultiMode = vi.fn((sessionId: SessionId, multiMode: boolean) => { controller.setMultiMode(sessionId, multiMode) })
+  const setSelected = vi.fn((sessionId: SessionId, indices: readonly number[]) => { controller.setSelected(sessionId, indices) })
   const copy = vi.fn((sessionId: SessionId) => controller.copy(sessionId))
   const download = vi.fn((sessionId: SessionId) => controller.download(sessionId))
   const dismiss = vi.fn((sessionId: SessionId) => { controller.dismiss(sessionId) })
@@ -37,10 +41,14 @@ function bench(controller = new ChatShareController(async () => ({ events: [], h
   }
   const t = (key: keyof typeof en): string => en[key]
   const props = {
-    sessionId: SID, useChatShare, open, setRange, setFormat, setRedact, setIncludeTools, copy, download, dismiss, t,
+    sessionId: SID, useChatShare, open, setRange, setFormat, setRedact, setIncludeTools,
+    setIncludeSubagents, setMultiMode, setSelected, copy, download, dismiss, t,
   } as unknown as ChatShareDialogProps
   const view = render(<ChatShareDialog {...props} />)
-  return { controller, open, setRange, setFormat, setRedact, setIncludeTools, copy, download, dismiss, view }
+  return {
+    controller, open, setRange, setFormat, setRedact, setIncludeTools, setIncludeSubagents,
+    setMultiMode, setSelected, copy, download, dismiss, view,
+  }
 }
 
 afterEach(cleanup)
@@ -107,6 +115,40 @@ describe('ChatShareDialog', () => {
     expect(tools.checked).toBe(false)
     fireEvent.click(tools)
     await waitFor(() => { expect(b.setIncludeTools).toHaveBeenCalledWith(SID, true) })
+  })
+
+  it('drives the PNG format, multi-select, and subagent options', async () => {
+    const controller = new ChatShareController(
+      async () => ({ events: [user(1, 'first question'), user(2, 'second question')], hasMore: false }),
+      async () => true,
+      vi.fn(),
+    )
+    const b = bench(controller)
+    await controller.open(SID)
+
+    fireEvent.click(b.view.getByLabelText('PNG'))
+    await waitFor(() => { expect(b.setFormat).toHaveBeenCalledWith(SID, 'png') })
+
+    fireEvent.click(b.view.getByLabelText('Include subagent conversations'))
+    await waitFor(() => { expect(b.setIncludeSubagents).toHaveBeenCalledWith(SID, true) })
+
+    fireEvent.click(b.view.getByLabelText('Multi-select mode'))
+    await waitFor(() => { expect(b.setMultiMode).toHaveBeenCalledWith(SID, true) })
+  })
+
+  it('multi-select rows toggle membership through clicks', async () => {
+    const controller = new ChatShareController(
+      async () => ({ events: [user(1, 'one'), user(2, 'two')], hasMore: false }),
+      async () => true,
+      vi.fn(),
+    )
+    const b = bench(controller)
+    await controller.open(SID)
+    // The whole list is seeded into the selection; clicking a row removes it.
+    act(() => { controller.setMultiMode(SID, true) })
+
+    fireEvent.click(b.view.getByRole('button', { name: /#1/ }))
+    await waitFor(() => { expect(b.setSelected).toHaveBeenCalledWith(SID, [1]) })
   })
 
   it('renders the range preview with localized role headers', async () => {

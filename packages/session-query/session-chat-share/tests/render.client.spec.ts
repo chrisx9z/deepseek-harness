@@ -11,7 +11,7 @@ const MESSAGES: ShareMessage[] = [
 ]
 
 const ZH: ShareLabels = {
-  user: '用户', assistant: '助手', tool: '工具', sharedFrom: '分享自 DeepSeek Harness',
+  user: '用户', assistant: '助手', tool: '工具', subagent: '子代理', sharedFrom: '分享自 DeepSeek Harness',
 }
 
 describe('renderShareMarkdown', () => {

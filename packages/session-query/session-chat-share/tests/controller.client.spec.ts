@@ -320,7 +320,7 @@ describe('ChatShareController', () => {
   it('follows the live artifact labels (UI locale)', async () => {
     const clipboard = vi.fn(async (_text: string) => true)
     const labels = () => ({
-      user: '用户', assistant: '助手', tool: '工具', sharedFrom: '分享自 DeepSeek Harness',
+      user: '用户', assistant: '助手', tool: '工具', subagent: '子代理', sharedFrom: '分享自 DeepSeek Harness',
     })
     const controller = new ChatShareController(
       singlePageReader([user(1, '你好')]), clipboard, vi.fn(), undefined, undefined, labels,
@@ -358,6 +358,71 @@ describe('ChatShareController', () => {
 
     const [, filename] = save.mock.calls[0] as unknown as [Blob, string]
     expect(filename).toBe(`dsh-chat-share-session-chat-share-controller-1-${SHARE_MAX_MESSAGES + 40}.txt`)
+  })
+
+  it('downloads PNG through the injected rasterizer', async () => {
+    const toPng = vi.fn(async (_node: HTMLElement) => 'data:image/png;base64,QUJD')
+    const save = vi.fn()
+    const controller = new ChatShareController(
+      singlePageReader([user(1, 'hello')]), async () => true, save,
+      undefined, undefined, undefined, undefined, undefined, toPng,
+    )
+    await controller.open(SID)
+    controller.setFormat(SID, 'png')
+    await controller.download(SID)
+
+    expect(toPng).toHaveBeenCalledOnce()
+    const node = toPng.mock.calls[0]?.[0] as HTMLElement
+    expect(node.innerHTML).toContain('hello')
+    const [blob, filename] = save.mock.calls[0] as unknown as [Blob, string]
+    expect(blob.type).toBe('image/png')
+    expect(filename).toMatch(/\.png$/)
+  })
+
+  it('multi-select mode exports the union of chosen rows', async () => {
+    const clipboard = vi.fn(async (_text: string) => true)
+    const controller = new ChatShareController(
+      singlePageReader([user(1, 'one'), user(2, 'two'), user(3, 'three')]),
+      clipboard,
+      vi.fn(),
+    )
+    await controller.open(SID)
+    controller.setRange(SID, 1, 2)
+    controller.setMultiMode(SID, true)
+    expect(controller.store.getSnapshot().bySession[SID]?.selected).toEqual([1, 2])
+
+    controller.setSelected(SID, [0, 2])
+    await controller.copy(SID)
+    const text = clipboard.mock.calls[0]?.[0] as string
+    expect(text).toContain('one')
+    expect(text).toContain('three')
+    expect(text).not.toContain('two')
+
+    controller.setMultiMode(SID, false)
+    expect(controller.store.getSnapshot().bySession[SID]?.selected).toEqual([])
+  })
+
+  it('appends subagent conversations when opted in', async () => {
+    const subagents = vi.fn(async () => [{ childSessionId: 'child-1', title: 'Helper' }])
+    const childHistory = vi.fn(async () => [user(99, 'child message')])
+    const controller = new ChatShareController(
+      singlePageReader([user(1, 'parent')]), async () => true, vi.fn(),
+      undefined, undefined, undefined, subagents, childHistory,
+    )
+    await controller.open(SID)
+    expect(controller.store.getSnapshot().bySession[SID]?.messages.map(m => m.role)).toEqual(['user'])
+
+    await controller.setIncludeSubagents(SID, true)
+
+    expect(subagents).toHaveBeenCalledWith(SID)
+    expect(childHistory).toHaveBeenCalledWith(SID, 'child-1')
+    const roles = controller.store.getSnapshot().bySession[SID]?.messages.map(m => m.role) ?? []
+    expect(roles).toEqual(['user', 'subagent', 'user'])
+    const header = controller.store.getSnapshot().bySession[SID]?.messages[1]
+    expect(header?.text).toBe('Helper')
+
+    await controller.setIncludeSubagents(SID, false)
+    expect(controller.store.getSnapshot().bySession[SID]?.messages.map(m => m.role)).toEqual(['user'])
   })
 })
 

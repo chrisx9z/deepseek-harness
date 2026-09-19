@@ -34,6 +34,7 @@ export type ChatShareDialogProps =
 
 /** One line of the range selector and message list. */
 function optionLabel(index: number, role: string, time: number, text: string): string {
+  // v8 ignore next -- `split` always yields at least one line, so the first line is never absent
   const firstLine = text.split('\n')[0]?.trim() ?? ''
   const preview = firstLine.length > 48 ? `${firstLine.slice(0, 48)}…` : firstLine
   return `#${index + 1} ${role} · ${formatShareTime(time)} · ${preview}`
@@ -128,6 +129,7 @@ export function ChatShareDialog({
       title={t('dialog.title')}
       description={t('dialog.description')}
       closeLabel={t('dialog.close')}
+      // v8 ignore next -- the CSS-module declaration types every class name as a string, so the fallback is unreachable
       contentClassName={css.content ?? ''}
       footer={(
         <>

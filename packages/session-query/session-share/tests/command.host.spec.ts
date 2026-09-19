@@ -107,6 +107,20 @@ async function mount(config?: SessionChatShareConfig) {
   return { ctx, routes, fiber, command: () => descriptor }
 }
 
+/** Mount the plugin over a Context that never provides the browser transport. */
+async function mountWithoutConnection() {
+  let descriptor: CommandDefinition | undefined
+  const ctx = new Context()
+  ctx.provide('commands', {
+    register(next: CommandDefinition) {
+      descriptor = next
+      return () => { descriptor = undefined }
+    },
+  } as never)
+  const fiber = await ctx.plugin(SessionChatShare)
+  return { ctx, fiber, command: () => descriptor }
+}
+
 let roots: string[] = []
 
 afterEach(async () => {
@@ -180,6 +194,17 @@ describe('/share host plugin', () => {
 
     await expect.poll(async () => readFile(join(dir, 'session-1.txt'), 'utf8')).toContain('saved message')
     expect(observed.dispose).toHaveBeenCalledOnce()
+    await mounted.fiber.dispose()
+  })
+
+  it('stays dormant until the browser transport is mounted', async () => {
+    const mounted = await mountWithoutConnection()
+
+    // `connection` is the transport half of the pair this plugin injects, so a
+    // deployment that never provides it keeps the fiber inactive: no command and
+    // no route exist until a transport is present.
+    expect(mounted.fiber.state).toBe(0)
+    expect(mounted.command()).toBeUndefined()
     await mounted.fiber.dispose()
   })
 
@@ -277,6 +302,15 @@ describe('parseShareInvocation', () => {
     expect(parseShareInvocation('last 2.5').kind).toBe('error')
     expect(parseShareInvocation('last many').kind).toBe('error')
   })
+
+  it('stops parsing at the first unknown token', () => {
+    expect(parseShareInvocation('last 2 nope').kind).toBe('error')
+    expect(parseShareInvocation('txt last 4').kind).toBe('success')
+  })
+
+  it('keeps a txt-only invocation on the dialog-free path with no count suffix', () => {
+    expect(parseShareInvocation('txt txt')).toEqual({ kind: 'success', text: 'share:txt' })
+  })
 })
 
 describe('shareMessagesFromEvents', () => {
@@ -332,6 +366,34 @@ describe('shareMessagesFromEvents', () => {
   it('defaults a missing seq and time to zero', () => {
     expect(shareMessagesFromEvents([{ type: 'user/message', data: { content: [textBlock('bare')] } }])).toEqual([
       { seq: 0, role: 'user', time: 0, text: 'bare', images: [], child: null },
+    ])
+  })
+
+  it('skips events whose message carries no content at all', () => {
+    const events: ShareEvent[] = [
+      { type: 'user/message', seq: 1, time: 1, data: {} },
+      { type: 'assistant/message', seq: 2, time: 2, data: { message: {} } },
+      { type: 'user/message', seq: 3, time: 3, data: { content: [{ type: 'tool-call' }] } },
+      userText(4, 'kept'),
+    ]
+
+    expect(shareMessagesFromEvents(events)).toEqual([
+      { seq: 4, role: 'user', time: 4000, text: 'kept', images: [], child: null },
+    ])
+  })
+
+  it('defaults an anonymous image and a tool call without an argument field', () => {
+    const events: ShareEvent[] = [
+      userEvent(1, [imageBlock('img-1')]),
+      { type: 'tool/call', seq: 2, time: 2000, surfaceOp: 'append', data: { name: 'read' } },
+    ]
+
+    expect(shareMessagesFromEvents(events)).toEqual([
+      {
+        seq: 1, role: 'user', time: 1000, text: '[image]', child: null,
+        images: [{ attachmentId: 'img-1', mediaType: 'image/png', data: null }],
+      },
+      { seq: 2, role: 'tool', time: 2000, text: '`read`', images: [], child: null },
     ])
   })
 
@@ -418,6 +480,21 @@ describe('shareRouteResponse', () => {
     expect(observed.dispose).toHaveBeenCalledOnce()
   })
 
+  it('serves an image-only message as text and media-type defaults', async () => {
+    const readImage = vi.fn(async () => ({ data: 'AAAA' }))
+    const ctx = hostCtx({
+      sessionQuery: { observeSession: async () => observationOf([userEvent(1, [imageBlock('img-1')])]) },
+      attachments: { readImage },
+    })
+
+    const response = await shareRouteResponse(ctx, {}, new Request(`http://host${SHARE_ROUTE}?sessionId=s1`))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      messages: [{ text: '[image]', images: [{ attachmentId: 'img-1', mediaType: 'image/png', data: 'AAAA' }] }],
+    })
+  })
+
   it('drops images it cannot read instead of failing the share', async () => {
     const readImage = vi.fn(async (ref: { readonly attachmentId: string }) => {
       if (ref.attachmentId === 'img-broken') throw new Error('attachment missing')
@@ -442,6 +519,23 @@ describe('shareRouteResponse', () => {
       { attachmentId: 'img-ok', mediaType: 'image/png', data: 'AAAA' },
     ])
     expect(readImage).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps the image media type when the attachment store does not report one', async () => {
+    const readImage = vi.fn(async () => ({ data: 'AAAA' }))
+    const ctx = hostCtx({
+      sessionQuery: {
+        observeSession: async () => observationOf([userEvent(1, [imageBlock('img-jpeg', 'image/jpeg', 'shot.jpg')])]),
+      },
+      attachments: { readImage },
+    })
+
+    const response = await shareRouteResponse(ctx, {}, new Request(`http://host${SHARE_ROUTE}?sessionId=s1`))
+
+    const payload = await response.json() as { readonly messages: readonly { readonly images: readonly unknown[] }[] }
+    expect(payload.messages[0]?.images).toEqual([
+      { attachmentId: 'img-jpeg', mediaType: 'image/jpeg', name: 'shot.jpg', data: 'AAAA' },
+    ])
   })
 
   it('empties images when the deployment has no attachment store or the payload opts out', async () => {
@@ -539,6 +633,23 @@ describe('shareRouteResponse', () => {
     expect(await withChildren.json()).toMatchObject({
       messages: [{ role: 'user' }, { role: 'subagent', text: 'Helper' }],
     })
+  })
+
+  it('serves no messages for events that carry no content', async () => {
+    const ctx = hostCtx({
+      sessionQuery: {
+        observeSession: async () => observationOf([
+          { type: 'user/message', seq: 1, time: 1 },
+          { type: 'assistant/message', seq: 2, time: 2 },
+          { type: 'tool/result', seq: 3, time: 3 },
+        ]),
+      },
+    })
+
+    const response = await shareRouteResponse(ctx, {}, new Request(`http://host${SHARE_ROUTE}?sessionId=s1`))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ messages: [] })
   })
 
   it('reports no children when the child registry or the listing fails', async () => {

@@ -181,6 +181,43 @@ describe('ChatShareDialog', () => {
     expect(dialog.textContent).toContain('Helper')
   })
 
+  it('closes through the mask overlay', async () => {
+    const b = bench()
+    await b.controller.open(SID)
+    const dialog = await b.view.findByRole('dialog', { name: 'Share chat segment' })
+
+    const mask = dialog.parentElement?.firstElementChild
+    if (mask === null || mask === undefined) throw new Error('Chat share modal has no mask overlay')
+    fireEvent.click(mask)
+
+    await waitFor(() => { expect(b.dismiss).toHaveBeenCalledWith(SID) })
+  })
+
+  it('returns the format to Markdown through its radio', async () => {
+    const b = bench()
+    await b.controller.open(SID)
+
+    fireEvent.click(b.view.getByLabelText('HTML'))
+    await waitFor(() => { expect(b.setFormat).toHaveBeenCalledWith(SID, 'html') })
+    fireEvent.click(b.view.getByLabelText('Markdown'))
+    await waitFor(() => { expect(b.setFormat).toHaveBeenCalledWith(SID, 'markdown') })
+  })
+
+  it('previews a blank first line as an empty option label', async () => {
+    const controller = new ChatShareController(
+      async () => payloadOf([message(1, 'user', '\nsecond line')]),
+      async () => true,
+      vi.fn(),
+    )
+    const b = bench(controller)
+    await controller.open(SID)
+
+    const dialog = await b.view.findByRole('dialog', { name: 'Share chat segment' })
+    expect(dialog.textContent).toContain('#1')
+    // The label's preview is the trimmed first line, which is empty here.
+    expect(b.view.getByLabelText('From').textContent).toContain('#1 User · ')
+  })
+
   it('shows payload failures and closes through the footer', async () => {
     const controller = new ChatShareController(async () => { throw new Error('offline') }, async () => true, vi.fn())
     const b = bench(controller)

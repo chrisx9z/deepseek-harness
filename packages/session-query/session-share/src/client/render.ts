@@ -1,6 +1,7 @@
 /** Pure renderers: Markdown, plain text, GFM-lite HTML, and best-effort redaction. */
 
 import type { ShareFormat, ShareMessage } from './controller.ts'
+import { FALLBACK_LABELS } from './locales.ts'
 
 /** Localized artifact vocabulary; defaults to English when absent. */
 export interface ShareLabels {
@@ -27,21 +28,13 @@ export interface ShareRenderOptions {
   images?: ReadonlyMap<string, string>
 }
 
-const DEFAULT_LABELS: ShareLabels = {
-  user: 'User',
-  assistant: 'Assistant',
-  tool: 'Tool',
-  subagent: 'Subagent',
-  sharedFrom: 'Shared from DeepSeek Harness',
-}
-
 /** One fixed timestamp format so shared artifacts read identically on every machine. */
 export function formatShareTime(time: number): string {
   return new Date(time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })
 }
 
 function labelsOf(options: ShareRenderOptions): ShareLabels {
-  return options.labels ?? DEFAULT_LABELS
+  return options.labels ?? FALLBACK_LABELS
 }
 
 function roleLabel(role: ShareMessage['role'], labels: ShareLabels): string {
@@ -115,6 +108,7 @@ function inline(escaped: string): string {
   )
   const withStrong = withLinks.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   const withEm = withStrong.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+  // v8 ignore next -- every matched token is a captured index, so codes[index] always holds the code text
   return withEm.replace(/\u0000(\d+)\u0000/g, (_match, index: string) => `<code>${codes[Number(index)] ?? ''}</code>`)
 }
 
@@ -154,6 +148,7 @@ export function renderGfmHtml(text: string): string {
         index += 1
       }
       index += 1
+      // v8 ignore next -- the fence regex always captures the info string, so the group is defined
       const lang = fence[1]?.trim() ?? ''
       const cls = lang === '' ? '' : ` class="language-${escapeHtml(lang)}"`
       blocks.push(`<pre><code${cls}>${escapeHtml(code.join('\n').trimEnd())}</code></pre>`)
@@ -163,6 +158,7 @@ export function renderGfmHtml(text: string): string {
     const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed)
     if (heading !== null) {
       flushPlain()
+      // v8 ignore next -- the `#{1,6}` regex always captures the run, so the group is defined
       const level = Math.min(6, heading[1]?.length ?? 6)
       blocks.push(`<h${level}>${inline(escapeHtml((heading[2] as string).trim()))}</h${level}>`)
       index += 1

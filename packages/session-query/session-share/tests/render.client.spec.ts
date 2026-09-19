@@ -106,6 +106,28 @@ describe('escapeHtml and renderGfmHtml', () => {
     const html = renderGfmHtml('```js\nconst x = 1')
     expect(html).toContain('<pre><code class="language-js">const x = 1</code></pre>')
   })
+
+  it('keeps a language-less fence bare and caps every heading level', () => {
+    const bare = renderGfmHtml('```\nplain\n```')
+    expect(bare).toContain('<pre><code>plain</code></pre>')
+    expect(bare).not.toContain('class="language-')
+
+    const headings = renderGfmHtml([
+      '# one', '## two', '### three', '#### four', '##### five', '###### six',
+    ].join('\n\n'))
+    expect(headings).toContain('<h1>one</h1>')
+    expect(headings).toContain('<h2>two</h2>')
+    expect(headings).toContain('<h3>three</h3>')
+    expect(headings).toContain('<h4>four</h4>')
+    expect(headings).toContain('<h5>five</h5>')
+    expect(headings).toContain('<h6>six</h6>')
+  })
+
+  it('keeps inline code that looks like a substitution token verbatim', () => {
+    const html = renderGfmHtml('value `\u00009\u0000` stays')
+
+    expect(html).toContain('<code>\u00009\u0000</code>')
+  })
 })
 
 describe('renderShareHtml', () => {
@@ -150,6 +172,17 @@ describe('renderShareHtml', () => {
     const html = renderShareHtml(MESSAGES, { labels: ZH })
     expect(html).toContain('>用户 · ')
     expect(html).toContain('分享自 DeepSeek Harness')
+  })
+
+  it('names an anonymous unresolved image with the shared-from label', () => {
+    const anonymous: ShareMessage[] = [
+      {
+        seq: 1, role: 'user', text: '', time: 1,
+        images: [{ attachmentId: 'img-1', mediaType: 'image/png', data: null }],
+      },
+    ]
+
+    expect(renderShareHtml(anonymous)).toContain('[Shared from DeepSeek Harness]')
   })
 })
 

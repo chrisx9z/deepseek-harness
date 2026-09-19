@@ -64,6 +64,43 @@ function captureDownloads() {
   return { createObjectURL, click }
 }
 
+/**
+ * Complete the DOM seams `html-to-image` needs in jsdom: the SVG element probe,
+ * an `Image` that decodes a data URL, and a canvas that yields a PNG data URL.
+ */
+function stubRasterizer(): { readonly toDataURL: ReturnType<typeof vi.fn> } {
+  // `html-to-image` only probes that SVGImageElement exists; an empty constructor
+  // is all the jsdom seam needs.
+  const SvgImageElementStub = function SvgImageElementStub(): void {}
+  class ImageStub {
+    onload: (() => void) | null = null
+    width = 1
+    height = 1
+    #src = ''
+    get src(): string { return this.#src }
+    set src(value: string) {
+      this.#src = value
+      setTimeout(() => { this.onload?.() }, 0)
+    }
+    decode(): Promise<void> { return Promise.resolve() }
+  }
+  vi.stubGlobal('SVGImageElement', SvgImageElementStub)
+  vi.stubGlobal('Image', ImageStub)
+
+  const toDataURL = vi.fn(() => 'data:image/png;base64,QUJD')
+  const context2d = new Proxy({}, { get: () => () => undefined, set: () => true })
+  // oxlint-disable-next-line typescript/no-deprecated -- the spy must wrap the real jsdom factory to keep other elements intact
+  const createElement = document.createElement.bind(document)
+  vi.spyOn(document, 'createElement').mockImplementation((tag: string, options?: ElementCreationOptions) => {
+    const element = createElement(tag, options)
+    if (tag === 'canvas') {
+      Object.assign(element, { getContext: () => context2d, toDataURL, width: 1, height: 1 })
+    }
+    return element
+  })
+  return { toDataURL }
+}
+
 describe('session-share browser plugin', () => {
   it('provides one controller and one Header contribution, removed on disposal', async () => {
     const b = await bench()
@@ -109,6 +146,45 @@ describe('session-share browser plugin', () => {
     await b.fiber.dispose()
   })
 
+  it('wires copy through the injected face', async () => {
+    const b = await bench()
+    const entry = b.slots.entries('conversation.session.header.utilities')[0]
+    const injected = (entry?.inject as unknown as () => ChatShareDialogInjected)()
+    const writeText = vi.fn(async (_text: string) => undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    await injected.open(SID)
+
+    await injected.copy(SID)
+
+    expect(writeText).toHaveBeenCalledOnce()
+    expect(writeText.mock.calls[0]?.[0]).toContain('**User**')
+    expect(writeText.mock.calls[0]?.[0]).toContain('one')
+    Reflect.deleteProperty(navigator, 'clipboard')
+    await b.fiber.dispose()
+  })
+
+  it('rasterizes a PNG download through the wired html-to-image converter', async () => {
+    const raster = stubRasterizer()
+    const b = await bench()
+    const downloads = captureDownloads()
+    const entry = b.slots.entries('conversation.session.header.utilities')[0]
+    const injected = (entry?.inject as unknown as () => ChatShareDialogInjected)()
+    await injected.open(SID)
+
+    injected.setFormat(SID, 'png')
+    await injected.download(SID)
+
+    const blob = downloads.createObjectURL.mock.calls[0]?.[0]
+    expect(blob?.type).toBe('image/png')
+    expect((downloads.click.mock.instances[0] as HTMLAnchorElement).download)
+      .toBe(`dsh-session-share-${SID}-1-3.png`)
+    // The browser half hands the detached artifact node to the real converter.
+    const rendered = raster.toDataURL.mock.instances[0] as HTMLCanvasElement
+    expect(rendered).toBeInstanceOf(HTMLCanvasElement)
+    expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]?.error).toBeNull()
+    await b.fiber.dispose()
+  }, 20_000)
+
   it('renders artifacts with the live locale labels', async () => {
     const b = await bench()
     const downloads = captureDownloads()
@@ -145,6 +221,32 @@ describe('session-share browser plugin', () => {
     b.ctx.emit('command/executed', SID, 'share', { kind: 'success' })
     await vi.waitFor(() => { expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]?.open).toBe(true) })
     expect(b.fetchMock).toHaveBeenCalledOnce()
+    await b.fiber.dispose()
+  })
+
+  it('ignores a command result whose token is not a share intent', async () => {
+    const b = await bench()
+
+    b.ctx.emit('command/executed', SID, 'share', { kind: 'success', text: 'something-else' })
+    await Promise.resolve()
+
+    expect(b.fetchMock).not.toHaveBeenCalled()
+    expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]).toBeUndefined()
+    await b.fiber.dispose()
+  })
+
+  it('saves the whole chat with the newest-N window for a bare txt intent', async () => {
+    const b = await bench()
+    const downloads = captureDownloads()
+
+    b.ctx.emit('command/executed', SID, 'share', { kind: 'success', text: 'share:txt' })
+    await vi.waitFor(() => { expect(downloads.createObjectURL).toHaveBeenCalledOnce() })
+
+    const anchor = downloads.click.mock.instances[0] as HTMLAnchorElement
+    expect(anchor.download).toBe(`dsh-session-share-${SID}-1-3.txt`)
+    const text = await downloads.createObjectURL.mock.calls[0]?.[0]?.text()
+    expect(text).toContain('one')
+    expect(text).toContain('three')
     await b.fiber.dispose()
   })
 

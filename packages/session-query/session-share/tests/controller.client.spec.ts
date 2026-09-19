@@ -369,6 +369,32 @@ describe('ChatShareController copy and download', () => {
     expect(entry(empty)?.error).toBe(CHAT_SHARE_ERROR.copyFailed)
   })
 
+  it('renders a non-Error clipboard rejection with its string form', async () => {
+    const controller = new ChatShareController(
+      fetcherOf(payloadOf([user(1, 'a')])), async () => { throw 'clipboard denied' }, vi.fn())
+    await controller.open(SID)
+
+    await controller.copy(SID)
+
+    expect(entry(controller)).toMatchObject({ busy: null, error: 'clipboard denied' })
+  })
+
+  it('drops a copy failure whose entry was cleared before the catch ran', async () => {
+    const controller = new ChatShareController(
+      fetcherOf(payloadOf([user(1, 'a')])),
+      async () => {
+        controller.store.set({ bySession: {} })
+        throw new Error('denied')
+      },
+      vi.fn(),
+    )
+    await controller.open(SID)
+
+    await controller.copy(SID)
+
+    expect(entry(controller)).toBeUndefined()
+  })
+
   it('drops a copy result whose entry was cleared mid-flight', async () => {
     const deferred = Promise.withResolvers<boolean>()
     const controller = new ChatShareController(fetcherOf(payloadOf([user(1, 'a')])), () => deferred.promise, vi.fn())
@@ -461,6 +487,44 @@ describe('ChatShareController copy and download', () => {
     expect(captured?.isConnected).toBe(false)
   })
 
+  it('detaches the artifact node when a PNG failure lands after the entry was cleared', async () => {
+    let captured: HTMLElement | undefined
+    const controller: ChatShareController = new ChatShareController(
+      fetcherOf(payloadOf([user(1, 'a')])),
+      async () => true,
+      vi.fn(),
+      undefined,
+      async (node: HTMLElement) => {
+        captured = node
+        controller.store.set({ bySession: {} })
+        throw new Error('raster failed')
+      },
+    )
+    await controller.open(SID)
+
+    controller.setFormat(SID, 'png')
+    await controller.download(SID)
+
+    expect(entry(controller)).toBeUndefined()
+    expect(captured?.isConnected).toBe(false)
+  })
+
+  it('drops a PNG result whose entry was cleared before the save landed', async () => {
+    const controller: ChatShareController = new ChatShareController(
+      fetcherOf(payloadOf([user(1, 'a')])),
+      async () => true,
+      () => { controller.store.set({ bySession: {} }) },
+      undefined,
+      async (_node: HTMLElement) => 'data:image/png;base64,QUJD',
+    )
+    await controller.open(SID)
+
+    controller.setFormat(SID, 'png')
+    await controller.download(SID)
+
+    expect(entry(controller)).toBeUndefined()
+  })
+
   it('publishes a save failure with its raw detail', async () => {
     const save = vi.fn(() => { throw new Error('disk full') })
     const controller = new ChatShareController(fetcherOf(payloadOf([user(1, 'a')])), async () => true, save)
@@ -469,6 +533,16 @@ describe('ChatShareController copy and download', () => {
     await controller.download(SID)
 
     expect(entry(controller)).toMatchObject({ busy: null, error: 'disk full' })
+  })
+
+  it('falls back to the download failure code for a save that throws without a message', async () => {
+    const save = vi.fn(() => { throw new Error('') })
+    const controller = new ChatShareController(fetcherOf(payloadOf([user(1, 'a')])), async () => true, save)
+    await controller.open(SID)
+
+    await controller.download(SID)
+
+    expect(entry(controller)).toMatchObject({ busy: null, error: CHAT_SHARE_ERROR.downloadFailed })
   })
 
   it('drops a download result whose entry was cleared mid-save', async () => {
@@ -569,6 +643,24 @@ describe('ChatShareController multi-select', () => {
     expect(ranged).toContain('two')
     expect(ranged).toContain('three')
     expect(ranged).not.toContain('one')
+  })
+
+  it('skips a multi-select index that no longer addresses a row', async () => {
+    const clipboard = vi.fn(async (_text: string) => true)
+    const controller = new ChatShareController(
+      fetcherOf(payloadOf([user(1, 'one')])), clipboard, vi.fn())
+    await controller.open(SID)
+    // A selection can outlive the rows it addressed (an option rebuild shrinks
+    // the list), so an index past the end must be ignored rather than exported.
+    const current = entry(controller)
+    if (current === undefined) throw new Error('The share entry was not published')
+    controller.store.set({ bySession: { [SID]: { ...current, multiMode: true, selected: [0, 7] } } })
+
+    await controller.copy(SID)
+
+    const text = clipboard.mock.calls[0]?.[0] as string
+    expect(text).toContain('one')
+    expect(text.split('\n').filter(line => line.startsWith('**')).length).toBe(1)
   })
 })
 

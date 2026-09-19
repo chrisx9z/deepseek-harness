@@ -1,0 +1,320 @@
+import { useEffect, useState } from 'react'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import {
+  Button, IconCheckOutline16, IconCopyOutline16, IconDownloadOutline16, MarkdownText, Modal,
+  type MarkdownLabels,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { CHAT_SHARE_ERROR, type ChatShareState, type ShareFormat } from './controller.ts'
+import { NS, type SessionChatShareKey } from './locales.ts'
+import { formatShareTime, redactSensitive } from './render.ts'
+import css from './Dialog.module.css'
+
+/** Browser operations and state injected into the Session Header contribution. */
+export interface ChatShareDialogInjected {
+  hooks: { chatShare: ObservableSnapshot<ChatShareState> }
+  open: (sessionId: SessionId) => Promise<void>
+  setRange: (sessionId: SessionId, from: number, to: number) => void
+  setFormat: (sessionId: SessionId, format: ShareFormat) => void
+  setRedact: (sessionId: SessionId, redact: boolean) => void
+  setIncludeTools: (sessionId: SessionId, includeTools: boolean) => void
+  setIncludeSubagents: (sessionId: SessionId, includeSubagents: boolean) => Promise<void>
+  setMultiMode: (sessionId: SessionId, multiMode: boolean) => void
+  setSelected: (sessionId: SessionId, indices: readonly number[]) => void
+  copy: (sessionId: SessionId) => Promise<void>
+  download: (sessionId: SessionId) => Promise<void>
+  dismiss: (sessionId: SessionId) => void
+}
+
+export type ChatShareDialogProps =
+  PropsRuntime<'conversation.session.header.utilities'>
+  & PropsLocale<typeof NS>
+  & InjectFace<ChatShareDialogInjected>
+
+/** One line of the range selector and message list. */
+function optionLabel(index: number, role: string, time: number, text: string): string {
+  const firstLine = text.split('\n')[0]?.trim() ?? ''
+  const preview = firstLine.length > 48 ? `${firstLine.slice(0, 48)}…` : firstLine
+  return `#${index + 1} ${role} · ${formatShareTime(time)} · ${preview}`
+}
+
+/** Map a controller error to localized copy; reader failures keep their raw detail. */
+function errorMessage(error: string | null, t: (key: SessionChatShareKey) => string): string | null {
+  if (error === null) return null
+  if (error === CHAT_SHARE_ERROR.copyFailed) return t('dialog.copyFailed')
+  if (error === CHAT_SHARE_ERROR.downloadFailed) return t('dialog.downloadFailed')
+  if (error === '') return t('dialog.historyFailed')
+  return `${t('dialog.historyFailed')} ${error}`
+}
+
+/** Localized chrome the markdown preview's code fences and footnotes read. */
+function markdownLabels(t: (key: SessionChatShareKey) => string): MarkdownLabels {
+  return {
+    code: { copyLabel: t('dialog.markdownCopy'), copiedLabel: t('dialog.markdownCopied') },
+    footnotes: t('dialog.markdownFootnotes'),
+  }
+}
+
+/**
+ * Modal shared by the Session Header button and this browser's `/share` command.
+ * @param props - Session runtime, bound controller state, actions, and localized copy.
+ * @returns the modal portal contribution.
+ */
+export function ChatShareDialog({
+  sessionId, useChatShare, setRange, setFormat, setRedact, setIncludeTools, setIncludeSubagents,
+  setMultiMode, setSelected, copy, download, dismiss, t,
+}: ChatShareDialogProps) {
+  const entry = useChatShare(state => state.bySession[String(sessionId)])
+  const open = entry?.open === true
+  const loading = entry?.loading === true
+  const messages = entry?.messages ?? []
+  const from = entry?.from ?? 0
+  const to = entry?.to ?? 0
+  const multiMode = entry?.multiMode ?? false
+  const selected = entry?.selected ?? []
+  const format = entry?.format ?? 'markdown'
+  const redact = entry?.redact ?? true
+  const includeTools = entry?.includeTools ?? false
+  const includeSubagents = entry?.includeSubagents ?? false
+  const busy = entry?.busy ?? null
+  const copied = entry?.copied === true
+  const error = entry?.error ?? null
+  const capped = messages.length >= 300
+
+  const [flashCopied, setFlashCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    setFlashCopied(true)
+    const timer = window.setTimeout(() => { setFlashCopied(false) }, 1500)
+    return () => { window.clearTimeout(timer) }
+  }, [copied])
+
+  const roleLabel = (role: 'user' | 'assistant' | 'tool' | 'subagent'): string => {
+    if (role === 'user') return t('role.user')
+    if (role === 'assistant') return t('role.assistant')
+    if (role === 'tool') return t('role.tool')
+    return t('role.subagent')
+  }
+
+  const errorText = errorMessage(error, t)
+
+  const clickMessage = (index: number): void => {
+    if (multiMode) {
+      const toggled = selected.includes(index)
+        ? selected.filter(item => item !== index)
+        : [...selected, index]
+      setSelected(sessionId, toggled)
+      return
+    }
+    if (index < from) setRange(sessionId, index, to)
+    else if (index > to) setRange(sessionId, from, index)
+    else setRange(sessionId, index, index)
+  }
+
+  const range = multiMode
+    ? selected
+      .filter(index => index >= 0 && index < messages.length)
+      .map(index => messages[index] as (typeof messages)[number])
+    : messages.slice(from, to + 1)
+  const previewText = (text: string): string => redact ? redactSensitive(text) : text
+
+  const actionsDisabled = busy !== null || messages.length === 0
+
+  return (
+    <Modal
+      open={open}
+      onClose={() => { dismiss(sessionId) }}
+      title={t('dialog.title')}
+      description={t('dialog.description')}
+      closeLabel={t('dialog.close')}
+      contentClassName={css.content ?? ''}
+      footer={(
+        <>
+          <Button
+            variant="primary"
+            icon={flashCopied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}
+            disabled={actionsDisabled}
+            onClick={() => { void copy(sessionId) }}
+          >
+            {flashCopied ? t('dialog.copied') : t('dialog.copy')}
+          </Button>
+          <Button
+            variant="ghost"
+            icon={<IconDownloadOutline16 />}
+            disabled={actionsDisabled}
+            onClick={() => { void download(sessionId) }}
+          >
+            {t('dialog.download')}
+          </Button>
+          <Button variant="ghost" onClick={() => { dismiss(sessionId) }}>{t('dialog.close')}</Button>
+        </>
+      )}
+    >
+      {loading && <p className={css.status}>{t('dialog.loading')}</p>}
+      {!loading && errorText !== null && <p className={css.status}>{errorText}</p>}
+      {!loading && errorText === null && messages.length === 0 && <p className={css.status}>{t('dialog.empty')}</p>}
+      {!loading && errorText === null && messages.length > 0 && (
+        <>
+          <div className={css.controls}>
+            {!multiMode && (
+              <>
+                <label className={css.rangeControl}>
+                  <span>{t('dialog.rangeFrom')}</span>
+                  <select
+                    value={from}
+                    disabled={busy !== null}
+                    onChange={(event) => { setRange(sessionId, Number(event.target.value), to) }}
+                  >
+                    {messages.map((message, index) => (
+                      <option key={message.seq} value={index}>
+                        {optionLabel(index, roleLabel(message.role), message.time, message.text)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={css.rangeControl}>
+                  <span>{t('dialog.rangeTo')}</span>
+                  <select
+                    value={to}
+                    disabled={busy !== null}
+                    onChange={(event) => { setRange(sessionId, from, Number(event.target.value)) }}
+                  >
+                    {messages.map((message, index) => (
+                      <option key={message.seq} value={index}>
+                        {optionLabel(index, roleLabel(message.role), message.time, message.text)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            <fieldset className={css.formatControl} disabled={busy !== null}>
+              <legend>{t('dialog.format')}</legend>
+              <label>
+                <input
+                  type="radio"
+                  name={`session-share-format-${String(sessionId)}`}
+                  value="markdown"
+                  checked={format === 'markdown'}
+                  onChange={() => { setFormat(sessionId, 'markdown') }}
+                />
+                {t('dialog.format.markdown')}
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`session-share-format-${String(sessionId)}`}
+                  value="html"
+                  checked={format === 'html'}
+                  onChange={() => { setFormat(sessionId, 'html') }}
+                />
+                {t('dialog.format.html')}
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`session-share-format-${String(sessionId)}`}
+                  value="txt"
+                  checked={format === 'txt'}
+                  onChange={() => { setFormat(sessionId, 'txt') }}
+                />
+                {t('dialog.format.txt')}
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`session-share-format-${String(sessionId)}`}
+                  value="png"
+                  checked={format === 'png'}
+                  onChange={() => { setFormat(sessionId, 'png') }}
+                />
+                {t('dialog.format.png')}
+              </label>
+            </fieldset>
+            <fieldset className={css.optionControl} disabled={busy !== null}>
+              <legend>{t('options')}</legend>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={redact}
+                  onChange={(event) => { setRedact(sessionId, event.target.checked) }}
+                />
+                {t('options.redact')}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={includeTools}
+                  onChange={(event) => { setIncludeTools(sessionId, event.target.checked) }}
+                />
+                {t('options.tools')}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={includeSubagents}
+                  disabled={loading}
+                  onChange={(event) => { void setIncludeSubagents(sessionId, event.target.checked) }}
+                />
+                {t('options.subagents')}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={multiMode}
+                  onChange={(event) => { setMultiMode(sessionId, event.target.checked) }}
+                />
+                {t('options.multiselect')}
+              </label>
+            </fieldset>
+          </div>
+          {capped && <p className={css.status}>{t('dialog.capNotice')}</p>}
+          <p className={css.messagesHeading}>{t('dialog.messages')}</p>
+          <ol className={css.list}>
+            {messages.map((message, index) => {
+              const selectedRow = multiMode ? selected.includes(index) : index >= from && index <= to
+              const toolRow = message.role === 'tool'
+              const subagentRow = message.role === 'subagent'
+              return (
+                <li key={message.seq}>
+                  <button
+                    type="button"
+                    className={selectedRow ? `${css.row} ${css.rowSelected}` : css.row}
+                    aria-pressed={selectedRow}
+                    onClick={() => { clickMessage(index) }}
+                  >
+                    {multiMode && (
+                      <span className={css.rowCheck} aria-hidden="true">
+                        {selectedRow ? '✓' : ''}
+                      </span>
+                    )}
+                    <span className={css.rowIndex}>#{index + 1}</span>
+                    <span className={toolRow || subagentRow ? `${css.rowRole} ${css.rowTool}` : css.rowRole}>
+                      {roleLabel(message.role)}
+                    </span>
+                    <span className={css.rowTime}>{formatShareTime(message.time)}</span>
+                    <span className={css.rowText}>{message.text.split('\n')[0]}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+          <details className={css.preview} open>
+            <summary>{t('dialog.preview')}</summary>
+            <div className={css.previewBody}>
+              {range.map(message => (
+                <div key={message.seq} className={css.previewRow}>
+                  <span className={css.previewRole}>
+                    {roleLabel(message.role)} · {formatShareTime(message.time)}
+                  </span>
+                  <MarkdownText text={previewText(message.text)} labels={markdownLabels(t)} />
+                </div>
+              ))}
+            </div>
+          </details>
+        </>
+      )}
+    </Modal>
+  )
+}

@@ -56,6 +56,11 @@
     - id: session-log-download
       name: '@deepseek-ai/dsh-session-log-export'
 
+    # Session share: `/share` command, the host payload route, and the
+    # Session-header dialog that copies or downloads a chosen message range.
+    - id: session-share
+      name: '@deepseek-ai/dsh-session-share'
+
     # Session-header "Open In..." split button over the host application
     # resolution (macOS/Windows/Linux; a host with no resolved application
     # renders no button). Two halves: the host routes and the browser surface.

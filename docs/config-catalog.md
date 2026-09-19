@@ -2294,6 +2294,24 @@ export interface Config {
 
 Source: [`packages/context/session-reference/src/config.ts:11`](../packages/context/session-reference/src/config.ts)
 
+<a id="deepseek-aidsh-session-share"></a>
+
+## `@deepseek-ai/dsh-session-share`
+
+Requires: `commands` · `connection`
+
+```ts config-catalog
+/** Plugin config: host-side file writing and payload enrichment. */
+export interface SessionChatShareConfig {
+  /** Write one TXT per Session after every completed turn. */
+  autoSaveDir?: string
+  /** Inline referenced images as base64 in the share payload. @default true */
+  includeImages?: boolean
+}
+```
+
+Source: [`packages/session-query/session-share/src/index.ts:40`](../packages/session-query/session-share/src/index.ts)
+
 <a id="deepseek-aidsh-session-telemetry-otel"></a>
 
 ## `@deepseek-ai/dsh-session-telemetry-otel`

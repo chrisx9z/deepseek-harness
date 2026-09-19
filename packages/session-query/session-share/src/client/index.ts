@@ -1,0 +1,101 @@
+/**
+ * Browser half of chat-segment share: the Session-header share action and the
+ * modal it opens. Rows arrive from the host share route, so this half owns only
+ * presentation, format choice, and the browser-side save.
+ */
+
+import { toPng } from 'html-to-image'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import { ChatShareController, type ShareFormat } from './controller.ts'
+import type { ChatShareDialogInjected } from './Dialog.tsx'
+import { ChatShareHeaderAction } from './HeaderAction.tsx'
+import { en, NS, zh, type SessionChatShareKey } from './locales.ts'
+import type { ShareLabels } from './render.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    chatShare: ChatShareController
+  }
+}
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    'session-share': SessionChatShareKey
+  }
+}
+
+export type { ChatShareEntry, ChatShareState, ShareFormat, ShareMessage } from './controller.ts'
+
+/** Required services for the dictionaries and the header-slot contribution. */
+export const inject = ['slots', 'locale']
+
+/** Follow the live UI locale in generated artifacts. */
+function labelsOf(t: (key: SessionChatShareKey) => string): () => ShareLabels {
+  return () => ({
+    user: t('role.user'),
+    assistant: t('role.assistant'),
+    tool: t('role.tool'),
+    subagent: t('role.subagent'),
+    sharedFrom: t('artifact.sharedFrom'),
+  })
+}
+
+/** Run a `/share` command intent produced by the host command handler. */
+function runShareIntent(controller: ChatShareController, sessionId: SessionId, resultText: string): void {
+  const [verb, flag, count] = resultText.split(':')
+  if (verb !== 'share') return
+  if (flag === 'txt') {
+    const lastN = count === undefined || count === '' ? undefined : Number(count)
+    void controller.saveTxt(sessionId, Number.isFinite(lastN) ? lastN : undefined)
+  } else {
+    void controller.open(sessionId)
+  }
+}
+
+/**
+ * Provide the share controller and mount its dialog into the Session Header.
+ * @param ctx - browser context carrying slots and locale services.
+ */
+export function apply(ctx: ClientContext): void {
+  const controller = new ChatShareController(
+    undefined,
+    undefined,
+    undefined,
+    labelsOf(ctx.locale.bind(NS)),
+    node => toPng(node, { pixelRatio: 2, cacheBust: true }),
+  )
+  ctx.provide('chatShare', controller)
+  ctx.effect(() => async () => { await controller.dispose() }, 'session-share: browser lifecycle')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-share: browser dictionaries')
+  ctx.on('command/executed', (sessionId, commandName, result) => {
+    if (commandName === 'share' && result.kind === 'success') runShareIntent(controller, sessionId, result.text ?? 'share')
+  })
+  ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
+    name: 'conversation.session.header.utilities',
+    id: 'session-share',
+    locale: NS,
+    inject: (): ChatShareDialogInjected => ({
+      hooks: { chatShare: controller.store },
+      open: (sessionId: SessionId) => controller.open(sessionId),
+      setRange: (sessionId: SessionId, from: number, to: number) => { controller.setRange(sessionId, from, to) },
+      setFormat: (sessionId: SessionId, format: ShareFormat) => { controller.setFormat(sessionId, format) },
+      setRedact: (sessionId: SessionId, redact: boolean) => { controller.setRedact(sessionId, redact) },
+      setIncludeTools: (sessionId: SessionId, includeTools: boolean) => {
+        controller.setIncludeTools(sessionId, includeTools)
+      },
+      setIncludeSubagents: (sessionId: SessionId, includeSubagents: boolean) =>
+        controller.setIncludeSubagents(sessionId, includeSubagents),
+      setMultiMode: (sessionId: SessionId, multiMode: boolean) => { controller.setMultiMode(sessionId, multiMode) },
+      setSelected: (sessionId: SessionId, indices: readonly number[]) => { controller.setSelected(sessionId, indices) },
+      copy: (sessionId: SessionId) => controller.copy(sessionId),
+      download: (sessionId: SessionId) => controller.download(sessionId),
+      dismiss: (sessionId: SessionId) => { controller.dismiss(sessionId) },
+    }),
+  }, ChatShareHeaderAction))
+}

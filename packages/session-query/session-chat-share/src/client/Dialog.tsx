@@ -196,7 +196,7 @@ export function ChatShareDialog({
               <label>
                 <input
                   type="radio"
-                  name={`session-share-format-${String(sessionId)}`}
+                  name={`session-chat-share-format-${String(sessionId)}`}
                   value="markdown"
                   checked={format === 'markdown'}
                   onChange={() => { setFormat(sessionId, 'markdown') }}
@@ -206,7 +206,7 @@ export function ChatShareDialog({
               <label>
                 <input
                   type="radio"
-                  name={`session-share-format-${String(sessionId)}`}
+                  name={`session-chat-share-format-${String(sessionId)}`}
                   value="html"
                   checked={format === 'html'}
                   onChange={() => { setFormat(sessionId, 'html') }}
@@ -216,7 +216,7 @@ export function ChatShareDialog({
               <label>
                 <input
                   type="radio"
-                  name={`session-share-format-${String(sessionId)}`}
+                  name={`session-chat-share-format-${String(sessionId)}`}
                   value="txt"
                   checked={format === 'txt'}
                   onChange={() => { setFormat(sessionId, 'txt') }}
@@ -226,7 +226,7 @@ export function ChatShareDialog({
               <label>
                 <input
                   type="radio"
-                  name={`session-share-format-${String(sessionId)}`}
+                  name={`session-chat-share-format-${String(sessionId)}`}
                   value="png"
                   checked={format === 'png'}
                   onChange={() => { setFormat(sessionId, 'png') }}

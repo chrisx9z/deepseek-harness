@@ -103,10 +103,10 @@ flowchart TD
     pkg_hooks_codex["hooks-codex"]
   end
   subgraph group_session_query["packages/session-query"]
+    pkg_session_chat_share["session-chat-share"]
     pkg_session_log_export["session-log-export"]
     pkg_session_query["session-query"]
     pkg_session_query_sqlite["session-query-sqlite"]
-    pkg_session_share["session-share"]
     pkg_tool_session_query["tool-session-query"]
   end
   subgraph group_acp["packages/acp"]
@@ -1320,7 +1320,7 @@ flowchart TD
 | [`util-workspace-path`](../packages/util/workspace-path) | `util` | — |
 | [`deepseek-llm-api-extensions`](../packages/llm/deepseek-llm-api-extensions) | `llm` | — |
 | [`llm`](../packages/llm/llm) | `llm` | — |
-| [`session-share`](../packages/session-query/session-share) | `session-query` | — |
+| [`session-chat-share`](../packages/session-query/session-chat-share) | `session-query` | — |
 | [`api-gateway`](../packages/api/gateway) | `api` | — |
 | [`api-workspace-files`](../packages/api/workspace-files) | `api` | — |
 | [`cmdline`](../packages/boot/cmdline) | `boot` | — |

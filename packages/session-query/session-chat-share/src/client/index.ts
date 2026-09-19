@@ -26,7 +26,7 @@ declare module '@deepseek-ai/cordis' {
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    'session-share': SessionChatShareKey
+    'session-chat-share': SessionChatShareKey
   }
 }
 
@@ -71,14 +71,14 @@ export function apply(ctx: ClientContext): void {
     node => toPng(node, { pixelRatio: 2, cacheBust: true }),
   )
   ctx.provide('chatShare', controller)
-  ctx.effect(() => async () => { await controller.dispose() }, 'session-share: browser lifecycle')
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-share: browser dictionaries')
+  ctx.effect(() => async () => { await controller.dispose() }, 'session-chat-share: browser lifecycle')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-chat-share: browser dictionaries')
   ctx.on('command/executed', (sessionId, commandName, result) => {
     if (commandName === 'share' && result.kind === 'success') runShareIntent(controller, sessionId, result.text ?? 'share')
   })
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities',
-    id: 'session-share',
+    id: 'session-chat-share',
     locale: NS,
     inject: (): ChatShareDialogInjected => ({
       hooks: { chatShare: controller.store },

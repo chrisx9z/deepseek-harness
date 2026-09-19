@@ -3,13 +3,13 @@ description: "Session share: the /share command, the Host share-payload route, a
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-session-share
+# @deepseek-ai/dsh-session-chat-share
 
 English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-session-share` shares a chosen range of a session's messages. The Session Header gains a Share action and the `/share` command opens the same dialog: pick an inclusive range or a multi-select union, choose Markdown, HTML, TXT, or PNG, preview the GFM rendering, then copy or download it. The Host half folds durable events into one JSON payload served at `GET /api/session.share`, read cold-safely with referenced images inlined, so an export covers the whole session regardless of what the transcript has paged. Setup and usage come first; implementation details follow.
+`dsh-session-chat-share` shares a chosen range of a session's messages. The Session Header gains a Share action and the `/share` command opens the same dialog: pick an inclusive range or a multi-select union, choose Markdown, HTML, TXT, or PNG, preview the GFM rendering, then copy or download it. The Host half folds durable events into one JSON payload served at `GET /api/session.share`, read cold-safely with referenced images inlined, so an export covers the whole session regardless of what the transcript has paged. Setup and usage come first; implementation details follow.
 
 ## Table of Contents
 
@@ -32,8 +32,8 @@ Compatibility: this package targets harness `0.1.6-alpha.2` and later, where the
 ### Composition
 
 ```yaml
-- id: session-share
-  name: '@deepseek-ai/dsh-session-share'
+- id: session-chat-share
+  name: '@deepseek-ai/dsh-session-chat-share'
   config:
     autoSaveDir: 'C:/shares'
     includeImages: true

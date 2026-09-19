@@ -1,12 +1,12 @@
 {
-  "name": "@deepseek-ai/dsh-session-share",
+  "name": "@deepseek-ai/dsh-session-chat-share",
   "description": "Share a selected range of chat messages as Markdown, HTML, TXT, or PNG",
   "version": "0.1.6-alpha.2",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/session-query/session-share"
+    "directory": "packages/session-query/session-chat-share"
   },
   "type": "module",
   "main": "lib/index.js",

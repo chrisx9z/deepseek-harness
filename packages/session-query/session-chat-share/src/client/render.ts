@@ -309,7 +309,7 @@ export function renderShareHtml(messages: readonly ShareMessage[], options: Shar
 export function shareFileName(sessionId: string, from: number, to: number, format: ShareFormat): string {
   const safe = sessionId.replace(/[^A-Za-z0-9_-]/g, '_')
   const extension = format === 'html' ? 'html' : format === 'txt' ? 'txt' : format === 'png' ? 'png' : 'md'
-  return `dsh-session-share-${safe}-${from + 1}-${to + 1}.${extension}`
+  return `dsh-session-chat-share-${safe}-${from + 1}-${to + 1}.${extension}`
 }
 
 /**

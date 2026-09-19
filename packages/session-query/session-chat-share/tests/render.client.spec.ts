@@ -204,8 +204,8 @@ describe('formatShareTime and shareFileName', () => {
   })
 
   it('sanitizes the session id into the filename', () => {
-    expect(shareFileName('a/b:c', 0, 2, 'markdown')).toBe('dsh-session-share-a_b_c-1-3.md')
-    expect(shareFileName('a', 3, 3, 'html')).toBe('dsh-session-share-a-4-4.html')
-    expect(shareFileName('a', 3, 3, 'txt')).toBe('dsh-session-share-a-4-4.txt')
+    expect(shareFileName('a/b:c', 0, 2, 'markdown')).toBe('dsh-session-chat-share-a_b_c-1-3.md')
+    expect(shareFileName('a', 3, 3, 'html')).toBe('dsh-session-chat-share-a-4-4.html')
+    expect(shareFileName('a', 3, 3, 'txt')).toBe('dsh-session-chat-share-a-4-4.txt')
   })
 })

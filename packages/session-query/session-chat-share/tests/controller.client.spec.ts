@@ -6,7 +6,7 @@ import {
   type ShareImage, type SharePayload, type SharePayloadMessage,
 } from '../src/client/controller.ts'
 
-const SID = 'session-share-controller' as SessionId
+const SID = 'session-chat-share-controller' as SessionId
 
 /** The published entry for the fixture Session. */
 function entry(controller: ChatShareController) {
@@ -419,7 +419,7 @@ describe('ChatShareController copy and download', () => {
     await controller.download(SID)
     const [html, htmlName] = save.mock.calls[0] as unknown as [Blob, string]
     expect(html.type).toBe('text/html;charset=utf-8')
-    expect(htmlName).toBe('dsh-session-share-session-share-controller-1-1.html')
+    expect(htmlName).toBe('dsh-session-chat-share-session-chat-share-controller-1-1.html')
     expect(await html.text()).toContain('<!doctype html>')
     expect(entry(controller)?.busy).toBeNull()
 
@@ -428,14 +428,14 @@ describe('ChatShareController copy and download', () => {
     await controller.download(SID)
     const [markdown, markdownName] = save.mock.calls[1] as unknown as [Blob, string]
     expect(markdown.type).toBe('text/markdown;charset=utf-8')
-    expect(markdownName).toBe('dsh-session-share-session-share-controller-1-2.md')
+    expect(markdownName).toBe('dsh-session-chat-share-session-chat-share-controller-1-2.md')
     expect(await markdown.text()).toContain('**User**')
 
     controller.setFormat(SID, 'txt')
     await controller.download(SID)
     const [txt, txtName] = save.mock.calls[2] as unknown as [Blob, string]
     expect(txt.type).toBe('text/plain;charset=utf-8')
-    expect(txtName).toBe('dsh-session-share-session-share-controller-1-2.txt')
+    expect(txtName).toBe('dsh-session-chat-share-session-chat-share-controller-1-2.txt')
     expect(await txt.text()).toContain('User · ')
   })
 
@@ -455,7 +455,7 @@ describe('ChatShareController copy and download', () => {
     expect(node.isConnected).toBe(false)
     const [blob, filename] = save.mock.calls[0] as unknown as [Blob, string]
     expect(blob.type).toBe('image/png')
-    expect(filename).toBe('dsh-session-share-session-share-controller-1-1.png')
+    expect(filename).toBe('dsh-session-chat-share-session-chat-share-controller-1-1.png')
   })
 
   it('reports PNG export as unavailable without a rasterizer', async () => {
@@ -675,7 +675,7 @@ describe('ChatShareController text export', () => {
     expect(save).toHaveBeenCalledOnce()
     const [blob, filename] = save.mock.calls[0] as unknown as [Blob, string]
     expect(blob.type).toBe('text/plain;charset=utf-8')
-    expect(filename).toBe('dsh-session-share-session-share-controller-1-2.txt')
+    expect(filename).toBe('dsh-session-chat-share-session-chat-share-controller-1-2.txt')
     expect(await blob.text()).toContain('Shared from DeepSeek Harness')
     expect(entry(controller)).toBeUndefined()
   })
@@ -719,14 +719,14 @@ describe('ChatShareController text export', () => {
 
     await controller.saveTxt(SID)
     const [whole, wholeName] = save.mock.calls[0] as unknown as [Blob, string]
-    expect(wholeName).toBe(`dsh-session-share-session-share-controller-1-${SHARE_MAX_MESSAGES + 40}.txt`)
+    expect(wholeName).toBe(`dsh-session-chat-share-session-chat-share-controller-1-${SHARE_MAX_MESSAGES + 40}.txt`)
     const wholeText = await whole.text()
     expect(wholeText).toContain('message-1\n')
     expect(wholeText).toContain(`message-${SHARE_MAX_MESSAGES + 40}\n`)
 
     await controller.saveTxt(SID, 3)
     const [tail, tailName] = save.mock.calls[1] as unknown as [Blob, string]
-    expect(tailName).toBe(`dsh-session-share-session-share-controller-${SHARE_MAX_MESSAGES + 38}-${SHARE_MAX_MESSAGES + 40}.txt`)
+    expect(tailName).toBe(`dsh-session-chat-share-session-chat-share-controller-${SHARE_MAX_MESSAGES + 38}-${SHARE_MAX_MESSAGES + 40}.txt`)
     const tailText = await tail.text()
     expect(tailText).toContain(`message-${SHARE_MAX_MESSAGES + 40}\n`)
     expect(tailText).not.toContain(`message-${SHARE_MAX_MESSAGES + 37}\n`)

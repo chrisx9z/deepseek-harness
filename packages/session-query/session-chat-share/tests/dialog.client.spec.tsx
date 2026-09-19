@@ -10,7 +10,7 @@ import {
 import { ChatShareDialog, type ChatShareDialogProps } from '../src/client/Dialog.tsx'
 import { en } from '../src/client/locales.ts'
 
-const SID = 'session-share-dialog' as SessionId
+const SID = 'session-chat-share-dialog' as SessionId
 
 function message(
   seq: number,

@@ -3,13 +3,13 @@ description: "会话分享：/share 命令、Host 分享载荷路由，以及把
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-session-share
+# @deepseek-ai/dsh-session-chat-share
 
 [English](README.md) | 中文
 
 ## 概述
 
-`dsh-session-share` 用于分享会话中选定范围的消息。Session Header 新增 Share 操作，`/share` 命令打开同一个弹窗：选择闭区间或多选并集，选择 Markdown、HTML、TXT 或 PNG，预览 GFM 渲染结果，然后复制或下载。Host 半边把持久事件折叠为 `GET /api/session.share` 上的一份 JSON 载荷，冷读安全并内联被引用的图片，因此无论界面已分页多少内容，导出都覆盖整个会话。先讲配置与用法，再讲实现细节。
+`dsh-session-chat-share` 用于分享会话中选定范围的消息。Session Header 新增 Share 操作，`/share` 命令打开同一个弹窗：选择闭区间或多选并集，选择 Markdown、HTML、TXT 或 PNG，预览 GFM 渲染结果，然后复制或下载。Host 半边把持久事件折叠为 `GET /api/session.share` 上的一份 JSON 载荷，冷读安全并内联被引用的图片，因此无论界面已分页多少内容，导出都覆盖整个会话。先讲配置与用法，再讲实现细节。
 
 ## 目录
 
@@ -32,8 +32,8 @@ kind: "package-reference"
 ### 组合
 
 ```yaml
-- id: session-share
-  name: '@deepseek-ai/dsh-session-share'
+- id: session-chat-share
+  name: '@deepseek-ai/dsh-session-chat-share'
   config:
     autoSaveDir: 'C:/shares'
     includeImages: true

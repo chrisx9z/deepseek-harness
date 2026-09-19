@@ -130,7 +130,7 @@ afterEach(async () => {
 })
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-session-share-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-session-chat-share-'))
   roots.push(dir)
   return dir
 }
@@ -139,7 +139,7 @@ describe('/share host plugin', () => {
   it('registers one command and one GET payload route, and removes the command with its fiber', async () => {
     const mounted = await mount()
 
-    expect(name).toBe('session-share')
+    expect(name).toBe('session-chat-share')
     expect(inject).toEqual(['commands', 'connection'])
     expect(mounted.command()).toMatchObject({
       name: 'share',
@@ -234,7 +234,7 @@ describe('/share host plugin', () => {
     mounted.ctx.emit('session/event', { id: 'session-1' } as never, { type: 'turn/end' } as never)
 
     await expect.poll(() => warn.mock.calls.length).toBe(1)
-    expect(warn.mock.calls[0]?.[0]).toBe('session-share: auto-save failed: history offline')
+    expect(warn.mock.calls[0]?.[0]).toBe('session-chat-share: auto-save failed: history offline')
     expect(await readdir(dir)).toEqual([])
     await mounted.fiber.dispose()
   })
@@ -250,7 +250,7 @@ describe('/share host plugin', () => {
     mounted.ctx.emit('session/event', { id: 'session-1' } as never, { type: 'turn/end' } as never)
 
     await expect.poll(() => warn.mock.calls.length).toBe(1)
-    expect(warn.mock.calls[0]?.[0]).toBe('session-share: auto-save failed: history offline')
+    expect(warn.mock.calls[0]?.[0]).toBe('session-chat-share: auto-save failed: history offline')
     await mounted.fiber.dispose()
   })
 
@@ -699,7 +699,7 @@ describe('shareRouteResponse', () => {
 
     expect(response.status).toBe(500)
     expect(await response.text())
-      .toBe('chat share could not read the session: session-share: the sessionQuery service is not mounted')
+      .toBe('chat share could not read the session: session-chat-share: the sessionQuery service is not mounted')
   })
 
   it('reports 499 when the request was aborted while the session was being read', async () => {

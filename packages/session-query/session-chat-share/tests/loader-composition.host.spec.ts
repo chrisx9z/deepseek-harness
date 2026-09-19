@@ -9,7 +9,7 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
-import * as SessionChatShare from '@deepseek-ai/dsh-session-share'
+import * as SessionChatShare from '@deepseek-ai/dsh-session-chat-share'
 
 /** One browser transport registration as the connection double captures it. */
 interface CapturedRoute {
@@ -27,14 +27,14 @@ afterEach(async () => {
   root = undefined
 })
 
-describe('session-share real Loader composition', () => {
+describe('session-chat-share real Loader composition', () => {
   it('discovers and executes /share through the assembled command plane', async () => {
-    root = await mkdtemp(join(tmpdir(), 'dsh-session-share-loader-'))
+    root = await mkdtemp(join(tmpdir(), 'dsh-session-chat-share-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
       "- name: '@deepseek-ai/dsh-session'",
       "- name: '@deepseek-ai/dsh-commands'",
-      "- name: '@deepseek-ai/dsh-session-share'",
+      "- name: '@deepseek-ai/dsh-session-chat-share'",
       '',
     ].join('\n'))
 
@@ -54,7 +54,7 @@ describe('session-share real Loader composition', () => {
     const modules = new Map<string, unknown>([
       ['@deepseek-ai/dsh-session', SessionStore],
       ['@deepseek-ai/dsh-commands', CommandRuntime],
-      ['@deepseek-ai/dsh-session-share', SessionChatShare],
+      ['@deepseek-ai/dsh-session-chat-share', SessionChatShare],
     ])
     context.loader.internal = {
       version: 'v2',
@@ -70,7 +70,7 @@ describe('session-share real Loader composition', () => {
     await context.loader.await()
 
     const session = (context.get('sessions') as unknown as SessionStore)
-      .create(SessionId('loader-session-share'), { meta: { createdAt: 1 } })
+      .create(SessionId('loader-session-chat-share'), { meta: { createdAt: 1 } })
     const agent = { session, status: 'idle', options: {} } as unknown as Agent
     expect(context.commands.list(agent)).toContainEqual({
       name: 'share', description: 'Share a segment of this chat as Markdown, HTML, or plain text',

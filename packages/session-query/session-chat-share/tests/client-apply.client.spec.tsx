@@ -10,7 +10,7 @@ import type { ChatShareDialogInjected } from '../src/client/Dialog.tsx'
 import { NS } from '../src/client/locales.ts'
 import { apply, inject } from '../src/client/index.ts'
 
-const SID = 'session-share-apply' as SessionId
+const SID = 'session-chat-share-apply' as SessionId
 
 /** Three shareable rows, so a `last N` window is distinguishable from the whole chat. */
 const PAYLOAD = {
@@ -101,7 +101,7 @@ function stubRasterizer(): { readonly toDataURL: ReturnType<typeof vi.fn> } {
   return { toDataURL }
 }
 
-describe('session-share browser plugin', () => {
+describe('session-chat-share browser plugin', () => {
   it('provides one controller and one Header contribution, removed on disposal', async () => {
     const b = await bench()
 
@@ -111,7 +111,7 @@ describe('session-share browser plugin', () => {
     const entries = b.slots.entries('conversation.session.header.utilities')
     expect(entries).toHaveLength(1)
     expect(entries[0]?.component).toBe(ChatShareHeaderAction)
-    expect(entries[0]?.options).toMatchObject({ id: 'session-share' })
+    expect(entries[0]?.options).toMatchObject({ id: 'session-chat-share' })
     expect(entries[0]?.locale).toBe(NS)
 
     await b.fiber.dispose()
@@ -177,7 +177,7 @@ describe('session-share browser plugin', () => {
     const blob = downloads.createObjectURL.mock.calls[0]?.[0]
     expect(blob?.type).toBe('image/png')
     expect((downloads.click.mock.instances[0] as HTMLAnchorElement).download)
-      .toBe(`dsh-session-share-${SID}-1-3.png`)
+      .toBe(`dsh-session-chat-share-${SID}-1-3.png`)
     // The browser half hands the detached artifact node to the real converter.
     const rendered = raster.toDataURL.mock.instances[0] as HTMLCanvasElement
     expect(rendered).toBeInstanceOf(HTMLCanvasElement)
@@ -243,7 +243,7 @@ describe('session-share browser plugin', () => {
     await vi.waitFor(() => { expect(downloads.createObjectURL).toHaveBeenCalledOnce() })
 
     const anchor = downloads.click.mock.instances[0] as HTMLAnchorElement
-    expect(anchor.download).toBe(`dsh-session-share-${SID}-1-3.txt`)
+    expect(anchor.download).toBe(`dsh-session-chat-share-${SID}-1-3.txt`)
     const text = await downloads.createObjectURL.mock.calls[0]?.[0]?.text()
     expect(text).toContain('one')
     expect(text).toContain('three')
@@ -257,7 +257,7 @@ describe('session-share browser plugin', () => {
     b.ctx.emit('command/executed', SID, 'share', { kind: 'success', text: 'share:txt:2' })
     await vi.waitFor(() => { expect(downloads.createObjectURL).toHaveBeenCalledOnce() })
     const anchor = downloads.click.mock.instances[0] as HTMLAnchorElement
-    expect(anchor.download).toBe(`dsh-session-share-${SID}-2-3.txt`)
+    expect(anchor.download).toBe(`dsh-session-chat-share-${SID}-2-3.txt`)
     const windowed = await downloads.createObjectURL.mock.calls[0]?.[0]?.text()
     expect(windowed).toContain('three')
     expect(windowed).not.toContain('one')

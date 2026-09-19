@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
 
-export const name = 'session-share'
+export const name = 'session-chat-share'
 
 /** The command plane plus the browser transport carrying the payload route. */
 export const inject = ['commands', 'connection']
@@ -175,7 +175,7 @@ function getService(ctx: Context, name: string): unknown {
  */
 function requireSessionQuery(ctx: Context): ShareSessionQuery {
   const service = getService(ctx, 'sessionQuery') as ShareSessionQuery | undefined
-  if (service === undefined) throw new Error('session-share: the sessionQuery service is not mounted')
+  if (service === undefined) throw new Error('session-chat-share: the sessionQuery service is not mounted')
   return service
 }
 
@@ -463,7 +463,7 @@ export function apply(ctx: Context, config: SessionChatShareConfig = {}): void {
     name: 'share',
     description: 'Share a segment of this chat as Markdown, HTML, or plain text',
     handler: invocation => Promise.resolve(parseShareInvocation(invocation.rawInput)),
-  }), 'session-share: command')
+  }), 'session-chat-share: command')
 
   const connection = getService(ctx, 'connection') as ShareConnection | undefined
   /* v8 ignore next -- `connection` is injected, so cordis holds this fiber inactive until a transport provides it */
@@ -473,7 +473,7 @@ export function apply(ctx: Context, config: SessionChatShareConfig = {}): void {
       methods: ['GET'],
       requestBody: 'buffered',
       fetch: request => shareRouteResponse(ctx, config, request),
-    }), 'session-share: share route')
+    }), 'session-chat-share: share route')
   }
 
   if (config.autoSaveDir !== undefined && config.autoSaveDir.trim() !== '') {
@@ -508,6 +508,6 @@ async function autoSaveSession(ctx: Context, dir: string, sessionId: string): Pr
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, `${sessionId}.txt`), text, 'utf8')
   } catch (error: unknown) {
-    ctx.logger.warn(`session-share: auto-save failed: ${error instanceof Error ? error.message : String(error)}`)
+    ctx.logger.warn(`session-chat-share: auto-save failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }

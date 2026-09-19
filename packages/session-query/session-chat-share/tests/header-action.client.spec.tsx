@@ -8,7 +8,7 @@ import { ChatShareHeaderAction } from '../src/client/HeaderAction.tsx'
 import type { ChatShareDialogProps } from '../src/client/Dialog.tsx'
 import { en } from '../src/client/locales.ts'
 
-const SID = 'session-share-header' as SessionId
+const SID = 'session-chat-share-header' as SessionId
 
 function message(seq: number, text: string): SharePayloadMessage {
   return { seq, role: 'user', time: seq * 1000, text, images: [], child: null }

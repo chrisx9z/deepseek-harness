@@ -12,7 +12,8 @@
     "src/client/css-modules.d.ts",
     "src/client/index.ts",
     "src/client/locales.ts",
-    "src/client/render.ts"
+    "src/client/render.ts",
+    "src/client/row-menu.tsx"
   ],
   "references": [
     { "path": "../../../vendor/cordis" },
@@ -24,6 +25,7 @@
     { "path": "../../client/ui-primitives" },
     { "path": "../../client/ui-renderer" },
     { "path": "../../client/ui-session" },
-    { "path": "../../client/ui-slots" }
+    { "path": "../../client/ui-slots" },
+    { "path": "../../client/ui-workspace" }
   ]
 }

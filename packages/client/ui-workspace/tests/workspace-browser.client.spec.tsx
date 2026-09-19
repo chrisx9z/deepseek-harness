@@ -12,6 +12,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { DirectoryFlowOwnerProps, WorkspaceBrowserProps } from '../src/client/contract/slots.ts'
+import type { SessionRowMenuAction } from '../src/client/session-row-menu.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
@@ -85,10 +86,24 @@ function dragData(): Pick<DataTransfer, 'effectAllowed' | 'dropEffect' | 'setDat
   return { effectAllowed: 'uninitialized', dropEffect: 'none', setData: vi.fn() }
 }
 
+/**
+ * Stable empty contribution list. `bindSnapshotSelector` defaults to
+ * `Object.is` equality and the browser selects the whole array, so a fresh
+ * array literal per `getSnapshot` call would re-render forever; the real
+ * registry likewise keeps one frozen snapshot identity until its set changes.
+ */
+const NO_ROW_MENU: readonly SessionRowMenuAction[] = Object.freeze([])
+
+/** Install a fixed contribution list as the `useSessionMenu` slot hook. */
+function rowMenuHook(actions: readonly SessionRowMenuAction[]): WorkspaceBrowserProps['useSessionMenu'] {
+  return bindSnapshotSelector({ getSnapshot: () => actions, subscribe: () => () => {} })
+}
+
 function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
   const store = createWorkspaceViewStore().create()
   const props: WorkspaceBrowserProps = {
     wide: true,
+    useSessionMenu: rowMenuHook(NO_ROW_MENU),
     expandSidebar: vi.fn(),
     useSessions: hook(sessionState([])),
     useSessionStatus: hook(noPendingInteraction),
@@ -690,6 +705,46 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
     expect(screen.getByText('kept-s')).toBeTruthy()
     expect(screen.queryByText('gone-s')).toBeNull()
+  })
+
+  it('appends contributed rows in both the grouped tree and the flat list, after the core verbs', () => {
+    const labels = { share: 'Share chat', save: 'Save as TXT' }
+    const openShare = vi.fn()
+    const saveTxt = vi.fn()
+    const contributions: readonly SessionRowMenuAction[] = [
+      { id: 'chat-share', order: 10, label: () => labels.share, run: openShare },
+      { id: 'chat-share-save-txt', order: 20, label: () => labels.save, run: saveTxt },
+    ]
+    const b = mount({
+      useSessionMenu: rowMenuHook(contributions),
+      useSessions: hook(sessionState([summary('alpha-s', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['alpha-s'])])),
+    })
+
+    // Grouped tree: the contribution is threaded down through SessionTree.
+    fireEvent.click(screen.getByText('alpha'))
+    fireEvent.click(screen.getByRole('button', { name: '会话“alpha-s”的操作' }))
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      '重命名', '分叉会话', '归档会话', 'Share chat', 'Save as TXT',
+    ])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Share chat' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(openShare).toHaveBeenCalledExactlyOnceWith(sid('alpha-s'))
+    expect(saveTxt).not.toHaveBeenCalled()
+
+    // Flat list: the same contributions reach FlatList's rows, and the second
+    // contribution runs its own action for its own Session.
+    fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
+    expect(b.store.getSnapshot().groupBy).toBe('flat')
+    fireEvent.click(screen.getByRole('button', { name: '会话“alpha-s”的操作' }))
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      '重命名', '分叉会话', '归档会话', 'Share chat', 'Save as TXT',
+    ])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Save as TXT' }))
+    expect(saveTxt).toHaveBeenCalledExactlyOnceWith(sid('alpha-s'))
+    expect(openShare).toHaveBeenCalledOnce()
+    expect(screen.getByText('alpha-s')).toBeTruthy()
   })
 
   it('logs and keeps the tree when the archive call rejects', async () => {

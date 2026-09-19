@@ -4,9 +4,11 @@ import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-l
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { IconShareOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { RowDragProps } from '../src/client/rows/Rows.tsx'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from '../src/client/rows/Rows.tsx'
+import type { SessionRowMenuAction } from '../src/client/session-row-menu.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../src/client/tree.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -533,6 +535,74 @@ describe('workspace browser rows', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+
+  it('appends contributed row-menu actions after the core verbs, reading a function label per render', () => {
+    const labels = { share: 'Share chat', save: 'Save as TXT' }
+    const openShare = vi.fn()
+    const saveTxt = vi.fn()
+    const actions: readonly SessionRowMenuAction[] = [
+      { id: 'chat-share', order: 10, label: () => labels.share, icon: <IconShareOutline16 size={16} />, run: openShare },
+      { id: 'chat-share-save-txt', order: 20, label: () => labels.save, run: saveTxt },
+    ]
+    const node: SessionNode = {
+      id: sid('s-share'), title: 'Shareable', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, hasActiveSchedule: false, updatedAt: 0,
+    }
+    const view = render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} menuActions={actions} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '会话“Shareable”的操作' }))
+
+    // Contributions follow the browser's own three verbs, in list order.
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      '重命名', '分叉会话', '归档会话', 'Share chat', 'Save as TXT',
+    ])
+    // A contributed icon renders in the menu's icon slot; an omitted one leaves
+    // the row without an icon box.
+    expect(screen.getByRole('menuitem', { name: 'Share chat' }).querySelectorAll('svg')).toHaveLength(1)
+    expect(screen.getByRole('menuitem', { name: 'Save as TXT' }).querySelector('[class*="itemIcon"]')).toBeNull()
+
+    // One click runs only its own contribution, for this row's Session, with
+    // the menu already closed.
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Share chat' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(openShare).toHaveBeenCalledExactlyOnceWith(node.id)
+    expect(saveTxt).not.toHaveBeenCalled()
+
+    // The label function is re-read on every render: a locale switch (or any
+    // other live label change) follows without re-registering the action.
+    labels.share = '分享会话'
+    view.rerender(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} menuActions={actions} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '会话“Shareable”的操作' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '分享会话' }))
+    expect(openShare).toHaveBeenCalledTimes(2)
+    expect(openShare).toHaveBeenLastCalledWith(node.id)
+  })
+
+  it('renders a plain-string contributed label and no contributed rows when menuActions is undefined', () => {
+    const run = vi.fn()
+    const node: SessionNode = {
+      id: sid('s-plain'), title: 'Plain', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, hasActiveSchedule: false, updatedAt: 0,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()} onRename={vi.fn()}
+      onFork={vi.fn()} onArchive={vi.fn()} menuActions={[{ id: 'chat-share', label: 'Share chat', run }]} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '会话“Plain”的操作' }))
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      '重命名', '分叉会话', '归档会话', 'Share chat',
+    ])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Share chat' }))
+    expect(run).toHaveBeenCalledExactlyOnceWith(node.id)
+
+    cleanup()
+    // No contribution list at all: exactly the browser's own three verbs.
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} menuActions={undefined} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '会话“Plain”的操作' }))
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      '重命名', '分叉会话', '归档会话',
+    ])
+  })
 
   it('shows the hover card after the dwell and suppresses it while the row menu is open', () => {
     vi.useFakeTimers()

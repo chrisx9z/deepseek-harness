@@ -17,6 +17,7 @@ import {
 import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
+import type { SessionRowMenuAction } from '../session-row-menu.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
 import css from './Rows.module.css'
 
@@ -404,7 +405,7 @@ export function SearchResultItem({ result, currentId, onOpen, t }: {
  * @returns the session row.
  */
 export function SessionNodeItem({
-  node, currentId, now, onOpen, onRename, onFork, onArchive, onReveal, drag, flat = false, t,
+  node, currentId, now, onOpen, onRename, onFork, onArchive, onReveal, drag, menuActions, flat = false, t,
 }: {
   node: SessionNode
   currentId: string | undefined
@@ -420,6 +421,8 @@ export function SessionNodeItem({
   onReveal?: (() => void) | undefined
   /** Present on reorderable-list rows so every row can remain a drop target. */
   drag?: RowDragProps | undefined
+  /** Feature contributions appended after the browser's own three row verbs. */
+  menuActions?: readonly SessionRowMenuAction[] | undefined
   /** The row is rendered without a parent Workspace header. */
   flat?: boolean | undefined
   t: RowTranslate
@@ -447,6 +450,14 @@ export function SessionNodeItem({
     { id: 'fork', label: t('menu.fork'), icon: <IconBranchOutline16 /> },
     // 20-native glyph in the menu's 16px icon slot (Menu.module.css .itemIcon).
     { id: 'archive', label: t('menu.archiveSession'), icon: <IconArchiveOutline20 size={16} /> },
+    // Feature contributions (chat-segment share, for example) follow the
+    // browser's own verbs; a label function is re-read here so it tracks the
+    // registrant's locale seat.
+    ...(menuActions ?? []).map(action => ({
+      id: action.id,
+      label: typeof action.label === 'function' ? action.label() : action.label,
+      ...(action.icon === undefined ? {} : { icon: action.icon }),
+    })),
   ]
   // Figma session cell: pad 8, status slot 16, then a 4px title gap.
   const ownRow = (
@@ -513,6 +524,8 @@ export function SessionNodeItem({
               if (id === 'rename') onRename(node.id, row.title)
               if (id === 'fork') onFork(node.id)
               if (id === 'archive') onArchive(node.id)
+              const contributed = (menuActions ?? []).find(action => action.id === id)
+              if (contributed !== undefined) void contributed.run(node.id)
             }}
             portal
             closeOnPointerLeave

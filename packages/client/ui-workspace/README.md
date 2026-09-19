@@ -47,6 +47,10 @@ The Session row's Rename action opens a dialog prefilled with the row's display 
 
 A Session title wider than its row is clipped with an ellipsis at rest. Hovering the row scrolls the title to its far edge — the incremented title of a fork, for example — and reveals it without the ellipsis; leaving the row returns the title to its start.
 
+### Session row-menu contributions
+
+The row menu owns three verbs — Rename, Fork, and Archive. A feature package adds further rows through the `sessionRowMenu` service this package provides: `register(action)` returns a disposer, contributions are ordered by `order` (then id) and appended after the three core verbs, a label given as a function is read on every render (so it follows the registrant's locale), and the row runs `action.run(sessionId)` after the menu closes. The service snapshot keeps a stable identity between registrations, so the browsing region re-renders only when the contribution set changes. Session share is the reference contributor: it registers **Share** and **Save TXT** through `ctx.inject`, so a composition without this registry simply keeps its Header action as the entry point.
+
 ### Pending interactions
 
 Session rows render the runtime's live `pendingInteraction` classification: approvals report **Waiting for approval**, plan reviews report **Plan awaiting review**, and ordinary questions report **Waiting for answer**. Every pending interaction uses an amber warning dot that takes precedence over the running indicator.

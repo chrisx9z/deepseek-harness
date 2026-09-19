@@ -25,9 +25,9 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当 Web bundle 需要让用户分享一段对话时使用本包。它需要 Host 侧的命令注册表与 Connection 的 Fetch 路由载体，以及浏览器侧的 slot 与 locale 席位；Session query 是可选的，只决定载荷能携带多少内容。挂载插件后，点击 Session Header 的 Share 或输入 `/share`；弹窗会把选定范围复制到剪贴板或下载为文件。
+当 Web bundle 需要让用户分享一段对话时使用本包。它需要 Host 侧的命令注册表与 Connection 的 Fetch 路由载体，以及浏览器侧的 slot 与 locale 席位；Session query 是可选的，只决定载荷能携带多少内容。挂载插件后，可点击 Session Header 的 Share、在会话侧边栏 `...` 菜单选择 **分享** 或 **保存 TXT**，或输入 `/share`；弹窗会把选定范围复制到剪贴板或下载为文件。
 
-兼容性：本包面向 harness `0.1.6-alpha.2` 及更高版本，其中浏览器通过 Session Controller 与会话载荷路由读取会话数据。harness `0.1.0-rc.x` 请改用此前的 `dsh-chat-share` 系列。
+兼容性：本包面向 harness `0.1.6-alpha.2` 及更高版本，其中浏览器通过 Session Controller 与会话载荷路由读取会话数据。harness `0.1.0-rc.x` 请改用此前的 `dsh-chat-share` 系列。侧边栏菜单项需要该 harness 的 ui-workspace 提供 `sessionRowMenu` 贡献注册表；若没有该注册表，插件仍会挂载并提供 Header 操作与 `/share`。
 
 ### 组合
 
@@ -57,7 +57,7 @@ kind: "package-reference"
 | `/share last <n>` | Save only the newest `<n>` shareable messages as `.txt` (also valid combined: `/share txt last 10`). |
 | anything else | Return an error with the accepted forms. |
 
-该命令仅由 Web bundle 挂载。本地 `command/executed` 确认只让提交命令的浏览器打开弹窗（或开始直接保存）；其他标签页仍渲染持久命令行，但不会重复浏览器副作用。Header 按钮直接调用同一个控制器。
+该命令仅由 Web bundle 挂载。本地 `command/executed` 确认只让提交命令的浏览器打开弹窗（或开始直接保存）；其他标签页仍渲染持久命令行，但不会重复浏览器副作用。Header 按钮与侧边栏菜单项驱动同一个控制器；侧边栏注册是软依赖，harness 未提供 `sessionRowMenu` 注册表时会跳过。
 
 ### 预期行为
 
@@ -122,7 +122,7 @@ None. The log-only command lifecycle and browser-side rendering do not change th
 - **复制或下载，而非托管链接** — 接收方打开 Markdown、HTML、TXT 或 PNG 文件；不上传任何内容到服务器。
 - **尽力而为的脱敏** — 凭据与绝对路径模式是启发式匹配，不构成保证；分享前请自行检查产物。
 - **仅界面文本** — 推理文本与工具结果不包含在内；工具调用是可选行。
-- **没有侧边栏入口** — harness 0.1.6 不再向插件开放会话行菜单注册表，因此 Header 按钮与 `/share` 是两个入口。
+- **侧边栏菜单项需要 harness 提供注册表** — 插件通过 ui-workspace 的 `sessionRowMenu` 注册表向会话侧边栏 `...` 菜单添加 **分享** 与 **保存 TXT** 两项。若 harness 没有该注册表（上游 0.1.6 没有），插件会静默跳过这两项，Header 按钮与 `/share` 仍是入口。
 
 <a id="dev-note"></a>
 ### 开发备注

@@ -5,6 +5,10 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  createSessionRowMenuService,
+  type SessionRowMenuAction, type SessionRowMenuService,
+} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { ChatShareHeaderAction } from '../src/client/HeaderAction.tsx'
 import type { ChatShareDialogInjected } from '../src/client/Dialog.tsx'
 import { NS } from '../src/client/locales.ts'
@@ -41,6 +45,22 @@ function declare(slots: SlotRegistry): () => void {
 
 /** Mount the browser half over the real slot registry and locale runtime. */
 async function bench() {
+  return await mountBrowser()
+}
+
+/**
+ * Mount the browser half with an optional pre-populated Session row-menu
+ * registry on the context. The registry is supplied BEFORE the plugin applies,
+ * which is what makes `ctx.inject(['sessionRowMenu'], …)` run its callback:
+ * omitting it is the soft-dependency case (no registry ⇒ no rows).
+ * @param registry - the live registry the plugin registers into, when present.
+ * @param locale - active UI locale pinned before apply.
+ * @returns handles for assertions plus the fetch double.
+ */
+async function mountBrowser(
+  registry?: SessionRowMenuService,
+  locale: 'en' | 'zh' = 'en',
+) {
   const fetchMock = vi.fn(async (_input: string | URL, _init?: RequestInit) => ({
     ok: true,
     json: async () => PAYLOAD,
@@ -50,10 +70,18 @@ async function bench() {
   await ctx.plugin(SlotRegistry).await()
   const slots = ctx.get('slots') as SlotRegistry
   const declaration = declare(slots)
-  ctx.provide('locale', new LocaleRuntime(ctx))
+  const localeRuntime = new LocaleRuntime(ctx)
+  localeRuntime.setLocale(locale)
+  ctx.provide('locale', localeRuntime)
+  if (registry !== undefined) ctx.provide('sessionRowMenu', registry)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber, fetchMock }
+  return { ctx, slots, declaration, fiber, fetchMock, registry, localeRuntime }
+}
+
+/** Read the live row-menu contributions of a mounted bench, or [] without a registry. */
+function menuRows(b: { registry?: SessionRowMenuService | undefined }): readonly SessionRowMenuAction[] {
+  return b.registry?.getSnapshot() ?? []
 }
 
 /** Observe browser downloads: object URLs capture the artifact Blob. */
@@ -268,5 +296,127 @@ describe('session-chat-share browser plugin', () => {
     expect(await downloads.createObjectURL.mock.calls[1]?.[0]?.text()).toContain('one')
     expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]).toBeUndefined()
     await b.fiber.dispose()
+  })
+})
+
+describe('session-chat-share Session row-menu injection', () => {
+  it('registers the two rows on a harness that provides the registry, with live locale labels', async () => {
+    const registry = createSessionRowMenuService()
+    const b = await mountBrowser(registry, 'zh')
+
+    expect(menuRows(b).map(action => action.id)).toEqual(['chat-share', 'chat-share-save-txt'])
+    expect(menuRows(b).map(action => action.order)).toEqual([10, 20])
+    // Labels are thunks over the live dictionary: switching the locale is
+    // visible on the next read, with no re-registration.
+    const labelOf = (id: string) => {
+      const action = menuRows(b).find(candidate => candidate.id === id)
+      return typeof action?.label === 'function' ? action.label() : action?.label
+    }
+    expect(labelOf('chat-share')).toBe('分享')
+    expect(labelOf('chat-share-save-txt')).toBe('保存 TXT')
+
+    b.localeRuntime.setLocale('en')
+    expect(labelOf('chat-share')).toBe('Share')
+    expect(labelOf('chat-share-save-txt')).toBe('Save TXT')
+
+    // The plugin still mounts its Header entry alongside the rows.
+    expect(b.slots.entries('conversation.session.header.utilities')).toHaveLength(1)
+    await b.fiber.dispose()
+  })
+
+  it('runs the registered rows through the controller for their Session id', async () => {
+    const registry = createSessionRowMenuService()
+    const b = await mountBrowser(registry)
+
+    await vi.waitFor(() => { expect(menuRows(b)).toHaveLength(2) })
+    const [share, saveTxt] = menuRows(b) as [SessionRowMenuAction, SessionRowMenuAction]
+
+    // The share row opens the dialog for exactly that Session.
+    await share.run(SID)
+    await vi.waitFor(() => {
+      expect(b.fetchMock).toHaveBeenCalledOnce()
+      expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]).toMatchObject({
+        open: true, loading: false,
+      })
+    })
+    expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]?.error).toBeNull()
+
+    // The Save-as-TXT row bypasses the dialog and downloads the whole chat.
+    b.ctx.chatShare.dismiss(SID)
+    expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]?.open).toBe(false)
+    const downloads = captureDownloads()
+    await saveTxt.run(SID)
+    await vi.waitFor(() => { expect(downloads.createObjectURL).toHaveBeenCalledOnce() })
+    const anchor = downloads.click.mock.instances[0] as HTMLAnchorElement
+    expect(anchor.download).toBe(`dsh-session-chat-share-${SID}-1-3.txt`)
+    expect(await downloads.createObjectURL.mock.calls[0]?.[0]?.text()).toContain('three')
+    // Saving never re-opened the dialog.
+    expect(b.ctx.chatShare.store.getSnapshot().bySession[SID]).toMatchObject({ open: false })
+    await b.fiber.dispose()
+  })
+
+  it('removes both rows when the browser fiber is disposed', async () => {
+    const registry = createSessionRowMenuService()
+    const b = await mountBrowser(registry)
+    expect(menuRows(b)).toHaveLength(2)
+
+    await b.fiber.dispose()
+
+    expect(registry.getSnapshot()).toEqual([])
+    expect(b.slots.entries('conversation.session.header.utilities')).toHaveLength(0)
+  })
+
+  it('leaves a foreign contribution alone while registering its own two rows', async () => {
+    const registry = createSessionRowMenuService()
+    const foreign = { id: 'other-feature', label: 'Other', run: vi.fn() }
+    registry.register(foreign)
+
+    const b = await mountBrowser(registry)
+
+    // The guard skips only ids it owns: a foreign contribution shares the
+    // registry untouched, and ordering still follows each contribution's key
+    // (default 100 puts the foreign row last).
+    expect(menuRows(b).map(action => action.id)).toEqual([
+      'chat-share', 'chat-share-save-txt', 'other-feature',
+    ])
+    expect(menuRows(b)[2]).toBe(foreign)
+    // Disposal releases only this plugin's registrations.
+    await b.fiber.dispose()
+    expect(registry.getSnapshot()).toEqual([foreign])
+  })
+
+  it('registers nothing when the rows are already owned, and the boot still succeeds', async () => {
+    const registry = createSessionRowMenuService()
+    const first = await mountBrowser(registry)
+    expect(menuRows(first)).toHaveLength(2)
+    const owner = menuRows(first)[0] as SessionRowMenuAction
+
+    // A composition can carry this plugin twice (harness bundle row plus an
+    // installed package). The registry throws on a duplicate id, so the second
+    // mount must skip its already-owned rows instead of failing browser boot.
+    const second = await mountBrowser(registry)
+
+    expect(menuRows(second).map(action => action.id)).toEqual(['chat-share', 'chat-share-save-txt'])
+    expect(menuRows(second)[0]).toBe(owner)
+    // The second mount still contributed its Header entry; only the rows were
+    // left to their first owner.
+    expect(second.slots.entries('conversation.session.header.utilities')).toHaveLength(1)
+
+    await second.fiber.dispose()
+    // The second mount owned no rows, so its disposal leaves the first's.
+    expect(menuRows(first).map(action => action.id)).toEqual(['chat-share', 'chat-share-save-txt'])
+    await first.fiber.dispose()
+    expect(registry.getSnapshot()).toEqual([])
+  })
+
+  it('mounts without the registry and keeps the Header as the single entry point', async () => {
+    const b = await mountBrowser()
+
+    expect(menuRows(b)).toEqual([])
+    expect(b.slots.entries('conversation.session.header.utilities')).toHaveLength(1)
+    expect(b.slots.entries('conversation.session.header.utilities')[0]?.component)
+      .toBe(ChatShareHeaderAction)
+    await b.fiber.dispose()
+    expect(menuRows(b)).toEqual([])
   })
 })

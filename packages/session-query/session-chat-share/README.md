@@ -25,9 +25,9 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Use this package when the Web bundle should let users share part of a conversation. It requires the command registry and the Connection Fetch-route carrier on the Host, plus the browser slot and locale seats; Session query is optional and only widens what the payload can carry. Mount the plugin, then press Share in the Session Header or type `/share`; the dialog copies the chosen range to the clipboard or downloads it as a file.
+Use this package when the Web bundle should let users share part of a conversation. It requires the command registry and the Connection Fetch-route carrier on the Host, plus the browser slot and locale seats; Session query is optional and only widens what the payload can carry. Mount the plugin, then press Share in the Session Header, pick **Share** or **Save TXT** from a session's sidebar `...` menu, or type `/share`; the dialog copies the chosen range to the clipboard or downloads it as a file.
 
-Compatibility: this package targets harness `0.1.6-alpha.2` and later, where the browser reads Session data through the Session Controller and session payload routes. Harness `0.1.0-rc.x` needs the previous `dsh-chat-share` line instead.
+Compatibility: this package targets harness `0.1.6-alpha.2` and later, where the browser reads Session data through the Session Controller and session payload routes. Harness `0.1.0-rc.x` needs the previous `dsh-chat-share` line instead. The sidebar rows require a harness whose ui-workspace carries the `sessionRowMenu` contribution registry; where that registry is absent the plugin still mounts and exposes the Header action and `/share`.
 
 ### Composition
 
@@ -57,7 +57,7 @@ Both config keys are optional: `autoSaveDir` makes the Host write one TXT per Se
 | `/share last <n>` | Save only the newest `<n>` shareable messages as `.txt` (also valid combined: `/share txt last 10`). |
 | anything else | Return an error with the accepted forms. |
 
-The command is mounted only by the Web bundle. The local `command/executed` acknowledgment opens the dialog (or starts the direct save) only in the browser that submitted it; other tabs still render the durable command row without repeating the browser side effect. The Header button calls the same controller directly.
+The command is mounted only by the Web bundle. The local `command/executed` acknowledgment opens the dialog (or starts the direct save) only in the browser that submitted it; other tabs still render the durable command row without repeating the browser side effect. The Header button and the sidebar rows drive the same controller; the sidebar registration is a soft dependency, skipped when the harness provides no `sessionRowMenu` registry.
 
 ### What to expect
 
@@ -122,7 +122,7 @@ These limits define when this package is a poor fit or needs special operational
 - **Copy or download, not a hosted link** — the recipient opens the Markdown, HTML, TXT, or PNG file; nothing is uploaded to a server.
 - **Best-effort redaction** — credential and absolute-path patterns are matched heuristically, not guaranteed; review the artifact before sharing it.
 - **Surface text only** — reasoning text and tool results are not included; tool calls are opt-in rows.
-- **No sidebar entry point** — harness 0.1.6 exposes no session-row menu registry to plugins, so the Header button and `/share` are the two entry points.
+- **Sidebar rows need a contributing harness** — the plugin adds **Share** and **Save TXT** rows to a session's sidebar `...` menu through ui-workspace's `sessionRowMenu` registry. A harness without that registry (upstream 0.1.6 has none) silently skips the rows and keeps the Header button and `/share` as its entry points.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -27,6 +27,7 @@ import {
   pinCurrentBlank, reconcileManualOrder, UNGROUPED_KEY, visibleSessionIds,
 } from '../tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
+import type { SessionRowMenuAction } from '../session-row-menu.ts'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
@@ -200,6 +201,8 @@ type SessionTreeProps = Pick<
   onSessionRename: (sessionId: SessionNode['id'], currentTitle: string) => void
   /** Archive a session (row menu action; the row disappears on the state echo). */
   onSessionArchive: (sessionId: SessionNode['id']) => void
+  /** Feature row-menu contributions appended after the browser's own verbs. */
+  sessionMenuActions: readonly SessionRowMenuAction[]
   /** One Session chosen from search that must be exposed and scrolled into view. */
   revealSessionId?: SessionId | undefined
   /** Acknowledge that the chosen Session row has been revealed. */
@@ -211,7 +214,7 @@ function SessionTree({
   list, useSessionStatus, startSession, open, forkSession, workspaces, ungroupedSessionIds,
   archivedSessionIds,
   workspaceReady, usePanelInfo,
-  onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive,
+  onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, sessionMenuActions,
   insertWorkspaceBefore,
   nestWorkspaces, groupExpansion, setGroupExpanded,
   setSessionOrder, home, t,
@@ -522,6 +525,7 @@ function SessionTree({
               onRename={onSessionRename}
               onFork={forkSession}
               onArchive={onSessionArchive}
+              menuActions={sessionMenuActions}
               onReveal={node.id === revealSessionId && group.key === revealGroup
                 ? () => { onSessionRevealed(node.id) }
                 : undefined}
@@ -567,6 +571,7 @@ function SessionTree({
 /** The flat "In one list" body: every session is one draggable top-level row. */
 function FlatList({
   list, sessionIds, useSessionStatus, open, forkSession, onSessionRename, onSessionArchive,
+  sessionMenuActions,
   usePanelInfo, setSessionOrder,
   revealSessionId, onSessionRevealed, t,
 }: Pick<
@@ -576,6 +581,7 @@ function FlatList({
   | 'forkSession'
   | 'onSessionRename'
   | 'onSessionArchive'
+  | 'sessionMenuActions'
   | 'usePanelInfo'
   | 'setSessionOrder'
   | 'revealSessionId'
@@ -635,6 +641,7 @@ function FlatList({
               onRename={onSessionRename}
               onFork={forkSession}
               onArchive={onSessionArchive}
+              menuActions={sessionMenuActions}
               onReveal={node.id === revealSessionId
                 ? () => { onSessionRevealed(node.id) }
                 : undefined}
@@ -783,10 +790,14 @@ export function WorkspaceBrowser({
   searchResultLimit,
   useDirectoryFlow,
   useHostInfo,
+  useSessionMenu,
   renderSlot,
   t,
 }: WorkspaceBrowserProps) {
   const home = useHostInfo(info => info.home)
+  // Feature row-menu contributions, read through the slot hook so a package
+  // that registers one after this surface mounted still appears.
+  const sessionMenuActions = useSessionMenu(actions => actions)
   // Ordering remains live while the rail or search replaces the list body.
   const list = useSessions(state => state)
   const workspaces = useWorkspaces(state => state.items)
@@ -1267,6 +1278,7 @@ export function WorkspaceBrowser({
                 useSessionStatus={useSessionStatus}
                 open={open} forkSession={forkSession}
                 onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
+                sessionMenuActions={sessionMenuActions}
                 setSessionOrder={saveSessionOrder}
                 revealSessionId={revealSessionId}
                 onSessionRevealed={acknowledgeSessionReveal}
@@ -1280,6 +1292,7 @@ export function WorkspaceBrowser({
                 useSessionStatus={useSessionStatus}
                 onSessionRename={onSessionRename}
                 onSessionArchive={onSessionArchive}
+                sessionMenuActions={sessionMenuActions}
                 forkSession={forkSession}
                 workspaces={orderedWorkspaces}
                 ungroupedSessionIds={orderedUngroupedSessionIds}

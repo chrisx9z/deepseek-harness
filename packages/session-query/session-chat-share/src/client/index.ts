@@ -12,11 +12,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { ChatShareController, type ShareFormat } from './controller.ts'
 import type { ChatShareDialogInjected } from './Dialog.tsx'
 import { ChatShareHeaderAction } from './HeaderAction.tsx'
 import { en, NS, zh, type SessionChatShareKey } from './locales.ts'
 import type { ShareLabels } from './render.ts'
+import { chatShareRowMenuActions, type ChatShareMenuLabels } from './row-menu.tsx'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -44,6 +46,11 @@ function labelsOf(t: (key: SessionChatShareKey) => string): () => ShareLabels {
     subagent: t('role.subagent'),
     sharedFrom: t('artifact.sharedFrom'),
   })
+}
+
+/** Follow the live UI locale in the sidebar row menu. */
+function menuLabelsOf(t: (key: SessionChatShareKey) => string): () => ChatShareMenuLabels {
+  return () => ({ share: t('menu.share'), saveTxt: t('menu.saveTxt') })
 }
 
 /** Run a `/share` command intent produced by the host command handler. */
@@ -75,6 +82,27 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-chat-share: browser dictionaries')
   ctx.on('command/executed', (sessionId, commandName, result) => {
     if (commandName === 'share' && result.kind === 'success') runShareIntent(controller, sessionId, result.text ?? 'share')
+  })
+  // Sidebar Session row menu: only a harness whose ui-workspace carries the
+  // contribution registry provides `sessionRowMenu`. `ctx.inject` keeps this a
+  // soft dependency — on a build without the registry the callback never runs
+  // and the Header action above stays the single entry point.
+  ctx.inject(['sessionRowMenu'], (menuCtx) => {
+    const t = menuCtx.locale.bind(NS)
+    menuCtx.effect(() => {
+      // A composition can carry this plugin twice (bundle row plus an installed
+      // package); the registry rejects duplicate ids, so an already-registered
+      // row is left to its owner instead of failing the whole browser boot.
+      const registered = new Set(menuCtx.sessionRowMenu.getSnapshot().map(action => action.id))
+      const disposers = chatShareRowMenuActions(
+        sessionId => controller.open(sessionId),
+        sessionId => controller.saveTxt(sessionId),
+        menuLabelsOf(t),
+      )
+        .filter(action => !registered.has(action.id))
+        .map(action => menuCtx.sessionRowMenu.register(action))
+      return () => { for (const dispose of disposers) dispose() }
+    }, 'session-chat-share: session row menu')
   })
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities',

@@ -32,6 +32,7 @@ import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { createWorkspaceViewStore } from '../stores.ts'
+import type { SessionRowMenuView } from '../session-row-menu.ts'
 
 /**
  * Owner share of the directory-flow holes: the complete conversation between
@@ -96,6 +97,12 @@ export type WorkspaceBrowserInjected = {
      * saw. Select the field the surface needs (`info => info.home`).
      */
     hostInfo: HostObservable<RemoteHostFacts>
+    /**
+     * Extra Session row-menu actions contributed by feature packages, after the
+     * browser's own three verbs. The snapshot identity changes only when the
+     * contribution set does.
+     */
+    sessionMenu: SessionRowMenuView
   }
   /**
    * Start a New Session in a Workspace: reuse-or-create its blank session and

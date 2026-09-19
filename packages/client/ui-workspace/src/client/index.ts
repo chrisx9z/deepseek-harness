@@ -25,12 +25,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { WorkspaceBrowserInjected, WorkspacePickerInjected } from './contract/slots.ts'
 import { UiWorkspaceService } from './navigation.ts'
+import { createSessionRowMenuService } from './session-row-menu.ts'
 import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
 import { WorkspacePicker } from './WorkspacePicker.tsx'
 import { en, zh, type WorkspaceKey } from './locales.ts'
 
 export type { UiWorkspace } from './navigation.ts'
+export type { SessionRowMenuAction, SessionRowMenuService, SessionRowMenuView } from './session-row-menu.ts'
+export { createSessionRowMenuService } from './session-row-menu.ts'
 export type {
   DirectoryFlowOwnerProps, DirectoryFlowSlotName, DirectoryPickingHooks, DirectoryPickingInjected,
   WorkspaceBrowserInjected, WorkspaceBrowserProps, WorkspacePickerInjected, WorkspacePickerProps,
@@ -81,6 +84,8 @@ export function apply(ctx: Context): void {
   const workspaces = ctx.get('workspaces') as IWorkspaces
   const uiWorkspace = new UiWorkspaceService(
     ctx, ctx.remote.directoryPicker, workspaces, sessions)
+  const sessionRowMenu = createSessionRowMenuService()
+  ctx.provide('sessionRowMenu', sessionRowMenu)
   ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } })
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-workspace: dictionaries')
 
@@ -133,7 +138,7 @@ export function apply(ctx: Context): void {
     },
     archiveSession: async (sessionId) => { await uiWorkspace.archiveSession(sessionId) },
     createWorkspace: input => workspaces.create(input),
-    hooks: { directoryFlow: browserFlowSource, hostInfo },
+    hooks: { directoryFlow: browserFlowSource, hostInfo, sessionMenu: sessionRowMenu },
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => workspaces.create(input),
